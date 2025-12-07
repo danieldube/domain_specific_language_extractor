@@ -1,0 +1,42 @@
+@startuml
+' Arc42 Section 6: Runtime Scenario
+
+skinparam wrapWidth 200
+skinparam maxMessageSize 150
+
+actor "User/CI" as user
+participant "CLI Frontend" as cli
+participant "Source Acquisition" as acquisition
+participant "Parsing & AST Indexer" as indexer
+participant "DSL Extraction Engine" as extraction
+participant "Coherence Analyzer" as coherence
+participant "Reporting Module" as reporting
+participant "Cache Manager" as cache
+
+user -> cli : dsl-extract analyze
+activate cli
+cli -> acquisition : parse config & arguments
+activate acquisition
+acquisition -> indexer : normalized file list + compilation settings
+activate indexer
+indexer -> cache : check cached AST facts
+activate cache
+cache --> indexer : cached facts (optional)
+indexer --> cache : store AST facts (optional)
+indexer -> extraction : AST fact model
+deactivate indexer
+activate extraction
+extraction -> coherence : DSL terms
+activate coherence
+coherence -> reporting : findings
+activate reporting
+extraction -> reporting : DSL terms
+coherence --> extraction : feedback on rule coverage (optional)
+reporting --> user : JSON/Markdown outputs + exit code
+Deactivate reporting
+Deactivate coherence
+Deactivate extraction
+Deactivate acquisition
+Deactivate cli
+
+@enduml

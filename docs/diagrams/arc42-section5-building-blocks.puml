@@ -1,0 +1,45 @@
+@startuml
+' Arc42 Section 5: Building Block View
+
+skinparam componentStyle rectangle
+skinparam wrapWidth 200
+skinparam maxMessageSize 150
+
+package "CLI & Configuration" {
+  [CLI Frontend] as cli
+}
+
+package "Acquisition" {
+  [Source Acquisition] as acquisition
+}
+
+package "Parsing & Indexing" {
+  [Parsing & AST Indexer] as indexer
+  [Cache Manager] as cache
+}
+
+package "DSL Analysis" {
+  [DSL Extraction Engine] as extraction
+  [Coherence Analyzer] as coherence
+}
+
+package "Outputs" {
+  [Reporting Module] as reporting
+}
+
+[Plugin Interfaces] as plugins
+
+cli --> acquisition : resolves sources/config
+acquisition --> indexer : compilation settings & file list
+indexer --> cache : optional fact caching
+cache --> indexer : cached facts when available
+indexer --> extraction : AST fact model
+extraction --> coherence : DSL terms
+coherence --> reporting : findings
+extraction --> reporting : DSL terms
+cli --> reporting : output options
+plugins <.. extraction : heuristic plug-ins
+plugins <.. coherence : rule plug-ins
+plugins <.. reporting : renderer plug-ins
+
+@enduml
