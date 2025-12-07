@@ -1,0 +1,34 @@
+@startuml
+' Arc42 Section 7: Deployment View
+
+skinparam wrapWidth 200
+skinparam maxMessageSize 150
+
+node "Developer Machine" as dev {
+  artifact "DSL CLI" as cli
+  node "Clang Toolchain" as clangDev
+  file "Project Sources" as sources
+  folder "DSL Cache (.dsl-cache/)" as cacheDev
+}
+
+node "CI Agent" as ci {
+  artifact "DSL CLI" as cliCI
+  node "Clang Toolchain" as clangCI
+  folder "Workspace Checkout" as repoCI
+  folder "CI Artifacts" as outputs
+  folder "DSL Cache (.dsl-cache/)" as cacheCI
+}
+
+cloud "Artifact Storage" as storage
+
+cli --> clangDev : uses
+cli --> sources : reads
+cli --> cacheDev : optional reuse
+
+cliCI --> clangCI : uses
+cliCI --> repoCI : analyzes
+cliCI --> cacheCI : optional reuse
+cliCI --> outputs : writes JSON/Markdown findings
+outputs --> storage : uploaded reports
+
+@enduml
