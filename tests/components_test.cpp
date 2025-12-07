@@ -1,6 +1,6 @@
-#include "dsl/DefaultComponents.h"
-#include "dsl/Interfaces.h"
-#include "dsl/Models.h"
+#include <dsl/default_components.h>
+#include <dsl/interfaces.h>
+#include <dsl/models.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -89,11 +89,7 @@ TEST(MarkdownReporterTest, RendersSections) {
 
 TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
   AnalysisConfig config{.root_path = "repo", .formats = {"markdown"}};
-  auto pipeline = DefaultAnalyzerPipeline(
-      std::make_unique<BasicSourceAcquirer>(), std::make_unique<SimpleAstIndexer>(),
-      std::make_unique<HeuristicDslExtractor>(),
-      std::make_unique<RuleBasedCoherenceAnalyzer>(),
-      std::make_unique<MarkdownReporter>());
+  auto pipeline = AnalyzerPipelineBuilder::WithDefaults().Build();
 
   const auto result = pipeline.Run(config);
 

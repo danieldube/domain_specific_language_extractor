@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "dsl/Interfaces.h"
+#include <dsl/interfaces.h>
 
 namespace dsl {
 
@@ -34,13 +34,38 @@ class MarkdownReporter : public Reporter {
                 const AnalysisConfig& config) override;
 };
 
+class DefaultAnalyzerPipeline;
+
+struct PipelineComponents {
+  std::unique_ptr<SourceAcquirer> source_acquirer;
+  std::unique_ptr<AstIndexer> indexer;
+  std::unique_ptr<DslExtractor> extractor;
+  std::unique_ptr<CoherenceAnalyzer> analyzer;
+  std::unique_ptr<Reporter> reporter;
+};
+
+class AnalyzerPipelineBuilder {
+ public:
+  AnalyzerPipelineBuilder& WithSourceAcquirer(
+      std::unique_ptr<SourceAcquirer> source_acquirer);
+  AnalyzerPipelineBuilder& WithIndexer(std::unique_ptr<AstIndexer> indexer);
+  AnalyzerPipelineBuilder& WithExtractor(
+      std::unique_ptr<DslExtractor> extractor);
+  AnalyzerPipelineBuilder& WithAnalyzer(
+      std::unique_ptr<CoherenceAnalyzer> analyzer);
+  AnalyzerPipelineBuilder& WithReporter(std::unique_ptr<Reporter> reporter);
+
+  DefaultAnalyzerPipeline Build();
+
+  static AnalyzerPipelineBuilder WithDefaults();
+
+ private:
+  PipelineComponents components_;
+};
+
 class DefaultAnalyzerPipeline : public AnalyzerPipeline {
  public:
-  DefaultAnalyzerPipeline(std::unique_ptr<SourceAcquirer> source_acquirer,
-                          std::unique_ptr<AstIndexer> indexer,
-                          std::unique_ptr<DslExtractor> extractor,
-                          std::unique_ptr<CoherenceAnalyzer> analyzer,
-                          std::unique_ptr<Reporter> reporter);
+  explicit DefaultAnalyzerPipeline(PipelineComponents components);
 
   PipelineResult Run(const AnalysisConfig& config) override;
 

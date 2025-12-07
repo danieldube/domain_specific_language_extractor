@@ -1,4 +1,4 @@
-#include "dsl/DefaultComponents.h"
+#include <dsl/default_components.h>
 
 #include <algorithm>
 #include <sstream>
@@ -105,17 +105,71 @@ Report MarkdownReporter::Render(const DslExtractionResult& extraction,
   return report;
 }
 
-DefaultAnalyzerPipeline::DefaultAnalyzerPipeline(
-    std::unique_ptr<SourceAcquirer> source_acquirer,
-    std::unique_ptr<AstIndexer> indexer,
-    std::unique_ptr<DslExtractor> extractor,
-    std::unique_ptr<CoherenceAnalyzer> analyzer,
-    std::unique_ptr<Reporter> reporter)
-    : source_acquirer_(std::move(source_acquirer)),
-      indexer_(std::move(indexer)),
-      extractor_(std::move(extractor)),
-      analyzer_(std::move(analyzer)),
-      reporter_(std::move(reporter)) {}
+AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
+  AnalyzerPipelineBuilder builder;
+  builder.WithSourceAcquirer(std::make_unique<BasicSourceAcquirer>());
+  builder.WithIndexer(std::make_unique<SimpleAstIndexer>());
+  builder.WithExtractor(std::make_unique<HeuristicDslExtractor>());
+  builder.WithAnalyzer(std::make_unique<RuleBasedCoherenceAnalyzer>());
+  builder.WithReporter(std::make_unique<MarkdownReporter>());
+  return builder;
+}
+
+AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithSourceAcquirer(
+    std::unique_ptr<SourceAcquirer> source_acquirer) {
+  components_.source_acquirer = std::move(source_acquirer);
+  return *this;
+}
+
+AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithIndexer(
+    std::unique_ptr<AstIndexer> indexer) {
+  components_.indexer = std::move(indexer);
+  return *this;
+}
+
+AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithExtractor(
+    std::unique_ptr<DslExtractor> extractor) {
+  components_.extractor = std::move(extractor);
+  return *this;
+}
+
+AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithAnalyzer(
+    std::unique_ptr<CoherenceAnalyzer> analyzer) {
+  components_.analyzer = std::move(analyzer);
+  return *this;
+}
+
+AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithReporter(
+    std::unique_ptr<Reporter> reporter) {
+  components_.reporter = std::move(reporter);
+  return *this;
+}
+
+DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
+  if (!components_.source_acquirer) {
+    components_.source_acquirer = std::make_unique<BasicSourceAcquirer>();
+  }
+  if (!components_.indexer) {
+    components_.indexer = std::make_unique<SimpleAstIndexer>();
+  }
+  if (!components_.extractor) {
+    components_.extractor = std::make_unique<HeuristicDslExtractor>();
+  }
+  if (!components_.analyzer) {
+    components_.analyzer = std::make_unique<RuleBasedCoherenceAnalyzer>();
+  }
+  if (!components_.reporter) {
+    components_.reporter = std::make_unique<MarkdownReporter>();
+  }
+  return DefaultAnalyzerPipeline(std::move(components_));
+}
+
+DefaultAnalyzerPipeline::DefaultAnalyzerPipeline(PipelineComponents components)
+    : source_acquirer_(std::move(components.source_acquirer)),
+      indexer_(std::move(components.indexer)),
+      extractor_(std::move(components.extractor)),
+      analyzer_(std::move(components.analyzer)),
+      reporter_(std::move(components.reporter)) {}
 
 PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig& config) {
   const auto sources = source_acquirer_->Acquire(config);

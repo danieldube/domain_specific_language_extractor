@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(dsl_core
-    src/DefaultComponents.cpp
+    src/default_components.cpp
 )
 
 target_include_directories(dsl_core
@@ -25,7 +25,9 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/*.cpp)
+set(TEST_SOURCES
+    tests/components_test.cpp
+)
 add_executable(dsl_tests ${TEST_SOURCES})
 
 target_link_libraries(dsl_tests
