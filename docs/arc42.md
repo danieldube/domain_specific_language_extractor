@@ -68,6 +68,7 @@
 - Parsing & AST Indexer feeds DSL Extraction Engine.
 - DSL Extraction Engine feeds Coherence Analyzer and Reporting.
 - Reporting consumes DSL Term Model and Findings Model.
+- See `docs/diagrams/arc42-section5-building-blocks.puml` for the corresponding PlantUML component diagram.
 
 ## 6. Runtime View
 
@@ -79,6 +80,7 @@
 5. **Coherence Analyzer** evaluates DSL terms to find conflicts or ambiguities; produces findings.
 6. **Reporting Module** renders Markdown and JSON; sets exit code (0 if no issues, non-zero otherwise) for CI.
 7. Optional: **Cache Manager** can persist AST facts to accelerate subsequent runs.
+- Sequence diagram available at `docs/diagrams/arc42-section6-runtime.puml`.
 
 ## 7. Deployment View
 - **Packaging:** distribute as a single CLI (static or self-contained) with dependencies on clang/LLVM runtimes.
@@ -87,6 +89,7 @@
   - **CI agents:** run CLI in build pipelines; artifacts (JSON/Markdown) stored as pipeline outputs.
 - **Configuration:** paths to toolchain, include directories, and compilation database provided via CLI args or config file.
 - **Data:** optional on-disk cache for AST facts stored under project `.dsl-cache/` to speed reruns; cleaned via CLI command.
+- Deployment diagram available at `docs/diagrams/arc42-section7-deployment.puml`.
 
 ## 8. Crosscutting Concepts
 - **Configuration:** YAML/TOML config plus CLI overrides; validation at startup; defaults favor deterministic analysis.
