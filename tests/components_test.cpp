@@ -2,25 +2,88 @@
 #include <dsl/interfaces.h>
 #include <dsl/models.h>
 
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 namespace dsl {
 namespace {
 
+class TemporaryProject {
+public:
+  TemporaryProject() {
+    const auto timestamp =
+        std::chrono::steady_clock::now().time_since_epoch().count();
+    root_ = std::filesystem::temp_directory_path() /
+            ("dsl-acquirer-" + std::to_string(timestamp));
+    std::filesystem::create_directories(root_);
+  }
+
+  ~TemporaryProject() { std::filesystem::remove_all(root_); }
+
+  std::filesystem::path AddFile(const std::filesystem::path &relative,
+                                const std::string &content = "") const {
+    const auto full_path = root_ / relative;
+    std::filesystem::create_directories(full_path.parent_path());
+    std::ofstream stream(full_path);
+    stream << content;
+    return full_path;
+  }
+
+  const std::filesystem::path &root() const { return root_; }
+
+private:
+  std::filesystem::path root_;
+};
+
 TEST(BasicSourceAcquirerTest, ProducesNormalizedFileList) {
-  AnalysisConfig config{.root_path = "/project/root", .formats = {"markdown"}};
+  TemporaryProject project;
+  project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+  const auto source_path = project.AddFile("src/main.cpp", "int main() {return 0;}");
+  const auto header_path = project.AddFile("include/example.h", "void example();");
+  const auto build_dir = project.root() / "build";
+  std::filesystem::create_directories(build_dir);
+  project.AddFile("build/compile_commands.json", "[]");
+  project.AddFile("build/generated.cpp", "int generated();");
+
+  AnalysisConfig config{.root_path = project.root().string(),
+                        .formats = {"markdown"},
+                        .build_directory = build_dir.string()};
   BasicSourceAcquirer acquirer;
 
   const auto result = acquirer.Acquire(config);
 
-  ASSERT_EQ(result.files.size(), 1u);
-  EXPECT_EQ(result.files.front(), "/project/root/sample.cpp");
+  EXPECT_EQ(
+      result.compile_commands_path,
+      std::filesystem::weakly_canonical(build_dir / "compile_commands.json")
+          .string());
+  EXPECT_EQ(result.normalized_root,
+            std::filesystem::weakly_canonical(project.root()).string());
+  EXPECT_THAT(result.files,
+              ::testing::UnorderedElementsAre(
+                  std::filesystem::weakly_canonical(source_path).string(),
+                  std::filesystem::weakly_canonical(header_path).string()));
+}
+
+TEST(BasicSourceAcquirerTest, ThrowsWhenCompileCommandsMissing) {
+  TemporaryProject project;
+  project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+  project.AddFile("src/example.cpp", "void example() {}");
+
+  AnalysisConfig config{.root_path = project.root().string()};
+  BasicSourceAcquirer acquirer;
+
+  EXPECT_THROW(acquirer.Acquire(config), std::runtime_error);
 }
 
 TEST(SimpleAstIndexerTest, CreatesFactsForEachFile) {
   SourceAcquisitionResult sources;
   sources.files = {"/project/root/a.cpp", "/project/root/b.cpp"};
+  sources.compile_commands_path = "/project/root/build/compile_commands.json";
+  sources.normalized_root = "/project/root";
   SimpleAstIndexer indexer;
 
   const auto index = indexer.BuildIndex(sources);
@@ -88,7 +151,16 @@ TEST(MarkdownReporterTest, RendersSections) {
 }
 
 TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
-  AnalysisConfig config{.root_path = "repo", .formats = {"markdown"}};
+  TemporaryProject project;
+  project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+  const auto source_path = project.AddFile("src/pipeline.cpp", "int f() {return 1;}");
+  const auto build_dir = project.root() / "build";
+  std::filesystem::create_directories(build_dir);
+  project.AddFile("build/compile_commands.json", "[]");
+
+  AnalysisConfig config{.root_path = project.root().string(),
+                        .formats = {"markdown"},
+                        .build_directory = build_dir.string()};
   auto pipeline = AnalyzerPipelineBuilder::WithDefaults().Build();
 
   const auto result = pipeline.Run(config);
@@ -96,7 +168,8 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
   ASSERT_FALSE(result.extraction.terms.empty());
   EXPECT_FALSE(result.report.markdown.empty());
   EXPECT_EQ(result.extraction.terms.front().name,
-            "symbol_from_repo/sample.cpp");
+            "symbol_from_" +
+                std::filesystem::weakly_canonical(source_path).string());
   EXPECT_FALSE(result.coherence.findings.empty());
 }
 

@@ -8,10 +8,14 @@ namespace dsl {
 struct AnalysisConfig {
   std::string root_path;
   std::vector<std::string> formats;
+  std::string build_directory;
+  std::string compile_commands_path;
 };
 
 struct SourceAcquisitionResult {
   std::vector<std::string> files;
+  std::string compile_commands_path;
+  std::string normalized_root;
 };
 
 struct AstFact {
