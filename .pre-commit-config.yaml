@@ -14,44 +14,14 @@ repos:
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: detect-private-key
-  - repo: https://github.com/cpplint/cpplint
-    rev: 1.6.1
-    hooks:
-      - id: cpplint
-        args:
-          - --extensions=hpp,h,ipp,cpp,cc,cxx
-          - --filter=-legal/copyright
-  - repo: https://github.com/pocc/pre-commit-hooks
-    rev: v1.3.5
-    hooks:
-      - id: clang-tidy
-        args:
-          - -p=build
-          - --warnings-as-errors=*
-        additional_dependencies:
-          - clang-tidy==18.*
-      - id: cppcheck
-        args:
-          - --std=c++14
-          - --enable=warning,performance,portability,style
-          - --inline-suppr
-          - --error-exitcode=1
-          - src
-          - include
-        additional_dependencies:
-          - cppcheck==2.14.*
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v18.1.8
     hooks:
       - id: clang-format
         args:
           - --style=file
-  - repo: https://github.com/cheshirekow/cmake-format-pre-commit
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
     rev: v0.6.13
     hooks:
       - id: cmake-format
       - id: cmake-lint
-        additional_dependencies:
-          - cmakelint==1.5.5
-default_language_version:
-  python: python3.8

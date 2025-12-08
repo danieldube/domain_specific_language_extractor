@@ -59,5 +59,4 @@ struct PipelineResult {
   DslExtractionResult extraction;
 };
 
-}  // namespace dsl
-
+} // namespace dsl
