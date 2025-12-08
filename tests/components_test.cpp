@@ -3,6 +3,7 @@
 #include <dsl/models.h>
 
 #include <filesystem>
+#include <stdexcept>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -12,28 +13,50 @@
 namespace dsl {
 namespace {
 
-TEST(SimpleAstIndexerTest, CreatesFactsForEachFile) {
+TEST(SimpleAstIndexerTest, ExtractsFactsFromSourceFiles) {
+  test::TemporaryProject project;
+  const auto source_path = project.AddFile(
+      "src/example.cpp",
+      "class Widget {\npublic:\n  void Paint() { }\n};\nint Run() {return 0;}\n");
+
   SourceAcquisitionResult sources;
-  sources.files = {"/project/root/a.cpp", "/project/root/b.cpp"};
-  sources.project_root = "/project/root";
+  sources.files = {std::filesystem::weakly_canonical(source_path).string()};
+  sources.project_root = project.root().string();
   SimpleAstIndexer indexer;
 
   const auto index = indexer.BuildIndex(sources);
 
-  ASSERT_EQ(index.facts.size(), 2u);
-  EXPECT_EQ(index.facts.at(0).name, "symbol_from_/project/root/a.cpp");
-  EXPECT_EQ(index.facts.at(1).name, "symbol_from_/project/root/b.cpp");
+  ASSERT_EQ(index.facts.size(), 3u);
+  EXPECT_EQ(index.facts.at(0).name, "Widget");
+  EXPECT_EQ(index.facts.at(0).kind, "class");
+  EXPECT_EQ(index.facts.at(0).location.file_path,
+            std::filesystem::weakly_canonical(source_path).string());
+  EXPECT_EQ(index.facts.at(0).location.line, 1u);
+
+  EXPECT_EQ(index.facts.at(1).name, "Paint");
+  EXPECT_EQ(index.facts.at(1).kind, "function");
+  EXPECT_EQ(index.facts.at(2).name, "Run");
+  EXPECT_EQ(index.facts.at(2).kind, "function");
+}
+
+TEST(SimpleAstIndexerTest, ThrowsWhenSourceListIsEmpty) {
+  SourceAcquisitionResult sources;
+  SimpleAstIndexer indexer;
+
+  EXPECT_THROW(indexer.BuildIndex(sources), std::invalid_argument);
 }
 
 TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
   AstIndex index;
-  index.facts = {{"alpha", "function"}, {"beta", "function"}};
+  index.facts = {{"alpha", "function", {"/tmp/a.cpp", 3}},
+                 {"beta", "class", {"/tmp/b.cpp", 10}}};
   HeuristicDslExtractor extractor;
 
   const auto extraction = extractor.Extract(index);
 
   ASSERT_EQ(extraction.terms.size(), 2u);
-  EXPECT_EQ(extraction.terms.front().definition, "Derived from alpha");
+  EXPECT_THAT(extraction.terms.front().definition,
+              ::testing::HasSubstr("/tmp/a.cpp:3"));
   ASSERT_EQ(extraction.relationships.size(), 1u);
   EXPECT_EQ(extraction.relationships.front().subject, "alpha");
   EXPECT_EQ(extraction.relationships.front().object, "beta");
@@ -98,9 +121,7 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
 
   ASSERT_FALSE(result.extraction.terms.empty());
   EXPECT_FALSE(result.report.markdown.empty());
-  EXPECT_EQ(result.extraction.terms.front().name,
-            "symbol_from_" +
-                std::filesystem::weakly_canonical(source_path).string());
+  EXPECT_EQ(result.extraction.terms.front().name, "f");
   EXPECT_FALSE(result.coherence.findings.empty());
 }
 

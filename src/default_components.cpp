@@ -1,18 +1,89 @@
 #include <dsl/default_components.h>
 
+#include <algorithm>
+#include <fstream>
+#include <regex>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace dsl {
 
-AstIndex SimpleAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
-  AstIndex index;
-  for (const auto &file : sources.files) {
-    AstFact fact;
-    fact.name = "symbol_from_" + file;
-    fact.kind = "function";
-    index.facts.push_back(fact);
+namespace {
+bool IsClassOrStruct(const std::string &line, std::smatch &match) {
+  static const std::regex kClassRegex(
+      R"(^\s*(class|struct)\s+([A-Za-z_]\w*)\s*(:|\{|$))");
+  return std::regex_search(line, match, kClassRegex);
+}
+
+bool IsFunctionDefinition(const std::string &line, std::smatch &match) {
+  static const std::regex kFunctionRegex(
+      R"(^\s*[\w:<>,~\[\]\s&*]+?\b([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)\s*\([^;]*\)\s*(const\s*)?\{)");
+  return std::regex_search(line, match, kFunctionRegex);
+}
+
+AstFact MakeFact(const std::string &name, const std::string &kind,
+                 const std::filesystem::path &file_path, std::size_t line) {
+  AstFact fact;
+  fact.name = name;
+  fact.kind = kind;
+  fact.location.file_path = std::filesystem::weakly_canonical(file_path).string();
+  fact.location.line = line;
+  return fact;
+}
+
+std::vector<AstFact> ExtractFactsFromFile(const std::filesystem::path &file_path) {
+  std::ifstream stream(file_path);
+  if (!stream.is_open()) {
+    throw std::runtime_error("Failed to open source file: " + file_path.string());
   }
+
+  std::vector<AstFact> facts;
+  std::string line;
+  std::size_t line_number = 0;
+  while (std::getline(stream, line)) {
+    ++line_number;
+
+    std::smatch match;
+    if (IsClassOrStruct(line, match)) {
+      facts.push_back(MakeFact(match[2].str(), match[1].str(), file_path,
+                               line_number));
+      continue;
+    }
+
+    if (IsFunctionDefinition(line, match)) {
+      facts.push_back(MakeFact(match[1].str(), "function", file_path,
+                               line_number));
+      continue;
+    }
+  }
+
+  return facts;
+}
+} // namespace
+
+AstIndex SimpleAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
+  if (sources.files.empty()) {
+    throw std::invalid_argument("No source files provided for AST indexing.");
+  }
+
+  AstIndex index;
+  index.project_root = sources.project_root;
+
+  for (const auto &file : sources.files) {
+    const auto path = std::filesystem::path(file);
+    const auto file_facts = ExtractFactsFromFile(path);
+    index.facts.insert(index.facts.end(), file_facts.begin(), file_facts.end());
+  }
+
+  std::stable_sort(index.facts.begin(), index.facts.end(),
+                   [](const AstFact &lhs, const AstFact &rhs) {
+                     if (lhs.location.file_path == rhs.location.file_path) {
+                       return lhs.location.line < rhs.location.line;
+                     }
+                     return lhs.location.file_path < rhs.location.file_path;
+                   });
+
   return index;
 }
 
@@ -21,8 +92,21 @@ DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
   for (const auto &fact : index.facts) {
     DslTerm term;
     term.name = fact.name;
-    term.kind = fact.kind == "type" ? "Entity" : "Action";
-    term.definition = "Derived from " + fact.name;
+    if (fact.kind == "type" || fact.kind == "class" || fact.kind == "struct") {
+      term.kind = "Entity";
+    } else {
+      term.kind = "Action";
+    }
+
+    std::ostringstream definition;
+    definition << "Derived from " << fact.name;
+    if (!fact.location.file_path.empty()) {
+      definition << " in " << fact.location.file_path;
+      if (fact.location.line > 0) {
+        definition << ":" << fact.location.line;
+      }
+    }
+    term.definition = definition.str();
     result.terms.push_back(term);
   }
 

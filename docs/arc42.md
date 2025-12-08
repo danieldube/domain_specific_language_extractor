@@ -60,7 +60,7 @@
 ### 5.2 Data Structures
 - **AnalysisConfig:** provides `root_path` and preferred output `formats` for analysis tooling.
 - **SourceAcquisitionResult:** normalized `files` list (deduplicated, sorted) and a normalized `project_root` shared across pipeline stages.
-- **AST Fact Model:** normalized representation of declarations, definitions, symbol references, and comments.
+- **AST Fact Model:** normalized representation of declarations, definitions, symbol references, and comments. Each fact captures the `name`, `kind` (e.g., `class`, `struct`, `function`), and a `SourceLocation` with canonical `file_path` and `line` number to keep extraction deterministic.
 - **DSL Term Model:** typed objects for entities, actions, relationships, and provenance metadata (file, line, symbol origin).
 - **Findings Model:** coherence issues with severity, description, and source locations.
 
@@ -74,6 +74,16 @@
 - **Outputs:**
   - Deterministic list of absolute source/header paths ready for AST indexing.
   - Normalized root path shared across pipeline stages.
+
+### 5.5 AST Indexer Contract
+- **Inputs:**
+  - `SourceAcquisitionResult` containing the canonicalized project root and list of source files.
+- **Processing rules:**
+  - Parse each provided source file, deriving semantic facts for top-level constructs (classes/structs) and function definitions using deterministic heuristics; no network access is required.
+  - Canonicalize file paths and preserve line numbers for every fact so downstream stages can report evidence locations.
+  - Reject empty source lists early with a clear error to avoid silent no-op analyses.
+- **Outputs:**
+  - `AstIndex` containing the project root and a stable, line-ordered collection of `AstFact` entries ready for DSL extraction.
 
 ### 5.3 Module Dependencies
 - CLI Frontend depends on Source Acquisition and Reporting.

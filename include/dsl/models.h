@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -15,13 +16,20 @@ struct SourceAcquisitionResult {
   std::string project_root;
 };
 
+struct SourceLocation {
+  std::string file_path;
+  std::size_t line = 0;
+};
+
 struct AstFact {
   std::string name;
   std::string kind;
+  SourceLocation location;
 };
 
 struct AstIndex {
   std::vector<AstFact> facts;
+  std::string project_root;
 };
 
 struct DslTerm {
