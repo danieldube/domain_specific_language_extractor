@@ -58,53 +58,6 @@ void RequireCMakeProject(const std::filesystem::path &root) {
   }
 }
 
-std::filesystem::path ResolveBuildDirectory(const AnalysisConfig &config,
-                                            const std::filesystem::path &root) {
-  std::filesystem::path build_directory =
-      config.build_directory.empty() ? root / "build"
-                                     : std::filesystem::path(config.build_directory);
-
-  if (!build_directory.is_absolute()) {
-    build_directory = root / build_directory;
-  }
-
-  return std::filesystem::weakly_canonical(build_directory);
-}
-
-std::filesystem::path ResolveCompilationDatabase(
-    const AnalysisConfig &config, const std::filesystem::path &root,
-    const std::filesystem::path &build_dir) {
-  const auto normalize = [&root](const std::filesystem::path &candidate) {
-    if (candidate.is_absolute()) {
-      return std::filesystem::weakly_canonical(candidate);
-    }
-    return std::filesystem::weakly_canonical(root / candidate);
-  };
-
-  if (!config.compilation_database_path.empty()) {
-    const auto configured_path = normalize(config.compilation_database_path);
-    if (!std::filesystem::exists(configured_path)) {
-      throw std::runtime_error(
-          "Configured compilation database does not exist: " +
-          configured_path.string());
-    }
-    return configured_path;
-  }
-
-  const auto root_candidate = normalize("compile_commands.json");
-  if (std::filesystem::exists(root_candidate)) {
-    return root_candidate;
-  }
-
-  const auto build_candidate = normalize(build_dir / "compile_commands.json");
-  if (std::filesystem::exists(build_candidate)) {
-    return build_candidate;
-  }
-
-  throw std::runtime_error(
-      "Compilation database not found in root or build directory.");
-}
-
 std::vector<std::string> CollectSourceFiles(
     const std::filesystem::path &root, const std::filesystem::path &build_dir) {
   std::vector<std::string> files;
@@ -140,13 +93,19 @@ std::vector<std::string> CollectSourceFiles(
 }
 } // namespace
 
+CMakeSourceAcquirer::CMakeSourceAcquirer(std::filesystem::path build_directory)
+    : build_directory_(std::move(build_directory)) {}
+
 SourceAcquisitionResult
 CMakeSourceAcquirer::Acquire(const AnalysisConfig &config) {
   const auto root = ResolveRootPath(config);
   RequireCMakeProject(root);
-  const auto build_dir = ResolveBuildDirectory(config, root);
-  const auto compilation_database =
-      ResolveCompilationDatabase(config, root, build_dir);
+
+  auto build_dir = build_directory_;
+  if (!build_dir.is_absolute()) {
+    build_dir = root / build_dir;
+  }
+  build_dir = std::filesystem::weakly_canonical(build_dir);
 
   auto files = CollectSourceFiles(root, build_dir);
   if (files.empty()) {
@@ -157,8 +116,6 @@ CMakeSourceAcquirer::Acquire(const AnalysisConfig &config) {
   SourceAcquisitionResult result;
   result.files = std::move(files);
   result.project_root = root.string();
-  result.artifacts.emplace("compilation_database",
-                           compilation_database.string());
   return result;
 }
 

@@ -46,32 +46,24 @@ TEST(CMakeSourceAcquirerTest, ProducesNormalizedFileList) {
   const auto header_path = project.AddFile("include/example.h", "void example();");
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
-  project.AddFile("build/compile_commands.json", "[]");
   project.AddFile("build/generated.cpp", "int generated();");
 
   AnalysisConfig config{.root_path = project.root().string(),
-                        .formats = {"markdown"},
-                        .build_directory = build_dir.string()};
+                        .formats = {"markdown"}};
   CMakeSourceAcquirer acquirer;
 
   const auto result = acquirer.Acquire(config);
 
   EXPECT_EQ(result.project_root,
             std::filesystem::weakly_canonical(project.root()).string());
-  const auto it = result.artifacts.find("compilation_database");
-  ASSERT_NE(it, result.artifacts.end());
-  EXPECT_EQ(it->second, std::filesystem::weakly_canonical(build_dir /
-                                                          "compile_commands.json")
-                            .string());
   EXPECT_THAT(result.files,
               ::testing::UnorderedElementsAre(
                   std::filesystem::weakly_canonical(source_path).string(),
                   std::filesystem::weakly_canonical(header_path).string()));
 }
 
-TEST(CMakeSourceAcquirerTest, ThrowsWhenCompilationDatabaseMissing) {
+TEST(CMakeSourceAcquirerTest, ThrowsWhenProjectIsNotCMakeBased) {
   TemporaryProject project;
-  project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
   project.AddFile("src/example.cpp", "void example() {}");
 
   AnalysisConfig config{.root_path = project.root().string()};
@@ -156,11 +148,9 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
   const auto source_path = project.AddFile("src/pipeline.cpp", "int f() {return 1;}");
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
-  project.AddFile("build/compile_commands.json", "[]");
 
   AnalysisConfig config{.root_path = project.root().string(),
-                        .formats = {"markdown"},
-                        .build_directory = build_dir.string()};
+                        .formats = {"markdown"}};
   auto pipeline = AnalyzerPipelineBuilder::WithDefaults().Build();
 
   const auto result = pipeline.Run(config);
