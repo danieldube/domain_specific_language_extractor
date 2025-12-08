@@ -1,6 +1,9 @@
 # Domain-Specific-Language-Extractor
 This program extracts a domain specific language from C++ source code.
 
+## Conventions
+- Filenames use lowercase snake_case to keep includes predictable and tooling-friendly.
+
 ## DSL Representation
 The analyzer emits its findings as a human-readable Markdown report (with an
 optional JSON mirror) following the structure documented in
