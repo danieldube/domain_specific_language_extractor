@@ -2,25 +2,20 @@
 #include <dsl/interfaces.h>
 #include <dsl/models.h>
 
+#include <filesystem>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include "test_support/temporary_project.h"
 
 namespace dsl {
 namespace {
 
-TEST(BasicSourceAcquirerTest, ProducesNormalizedFileList) {
-  AnalysisConfig config{.root_path = "/project/root", .formats = {"markdown"}};
-  BasicSourceAcquirer acquirer;
-
-  const auto result = acquirer.Acquire(config);
-
-  ASSERT_EQ(result.files.size(), 1u);
-  EXPECT_EQ(result.files.front(), "/project/root/sample.cpp");
-}
-
 TEST(SimpleAstIndexerTest, CreatesFactsForEachFile) {
   SourceAcquisitionResult sources;
   sources.files = {"/project/root/a.cpp", "/project/root/b.cpp"};
+  sources.project_root = "/project/root";
   SimpleAstIndexer indexer;
 
   const auto index = indexer.BuildIndex(sources);
@@ -88,7 +83,15 @@ TEST(MarkdownReporterTest, RendersSections) {
 }
 
 TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
-  AnalysisConfig config{.root_path = "repo", .formats = {"markdown"}};
+  test::TemporaryProject project;
+  project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+  const auto source_path =
+      project.AddFile("src/pipeline.cpp", "int f() {return 1;}");
+  const auto build_dir = project.root() / "build";
+  std::filesystem::create_directories(build_dir);
+
+  AnalysisConfig config{.root_path = project.root().string(),
+                        .formats = {"markdown"}};
   auto pipeline = AnalyzerPipelineBuilder::WithDefaults().Build();
 
   const auto result = pipeline.Run(config);
@@ -96,7 +99,8 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
   ASSERT_FALSE(result.extraction.terms.empty());
   EXPECT_FALSE(result.report.markdown.empty());
   EXPECT_EQ(result.extraction.terms.front().name,
-            "symbol_from_repo/sample.cpp");
+            "symbol_from_" +
+                std::filesystem::weakly_canonical(source_path).string());
   EXPECT_FALSE(result.coherence.findings.empty());
 }
 

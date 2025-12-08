@@ -2,14 +2,20 @@
 
 #include <dsl/interfaces.h>
 
+#include <filesystem>
 #include <memory>
 #include <string>
 
 namespace dsl {
 
-class BasicSourceAcquirer : public SourceAcquirer {
+class CMakeSourceAcquirer : public SourceAcquirer {
 public:
+  explicit CMakeSourceAcquirer(
+      std::filesystem::path build_directory = std::filesystem::path("build"));
   SourceAcquisitionResult Acquire(const AnalysisConfig &config) override;
+
+private:
+  std::filesystem::path build_directory_;
 };
 
 class SimpleAstIndexer : public AstIndexer {

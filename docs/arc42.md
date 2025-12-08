@@ -45,7 +45,7 @@
 
 ### 5.1 High-Level Components
 - **CLI Frontend:** argument parsing, configuration loading, and command dispatch (e.g., `analyze`, `report`, `cache clean`).
-- **Source Acquisition:** resolves repository root, compilation database (`compile_commands.json`), include paths, and normalization of source files to analyze.
+- **Source Acquisition:** resolves repository root, validates the project layout, normalizes source file paths, and filters out generated/build artifacts. The `CMakeSourceAcquirer` is an adapter for CMake-based projects but remains interchangeable with other acquirers without exposing build-system details.
 - **Parsing & AST Indexer:** wraps clang tooling to produce a semantic index (symbols, types, call graph, comments); caches results for reuse.
 - **DSL Extraction Engine:** converts AST facts into DSL terms (domain entities, actions, relationships) using deterministic heuristics; optionally enriches via LLM strategies behind a small interface.
 - **Coherence Analyzer:** detects conflicting or ambiguous DSL usage across modules and files; maps findings to locations.
@@ -58,9 +58,22 @@
 - **Fact sources:** relies on the AST index for symbol definitions, control-flow summaries (mutations, returns, exceptions), call graph edges, and basic type info to run the rules deterministically.
 
 ### 5.2 Data Structures
+- **AnalysisConfig:** provides `root_path` and preferred output `formats` for analysis tooling.
+- **SourceAcquisitionResult:** normalized `files` list (deduplicated, sorted) and a normalized `project_root` shared across pipeline stages.
 - **AST Fact Model:** normalized representation of declarations, definitions, symbol references, and comments.
 - **DSL Term Model:** typed objects for entities, actions, relationships, and provenance metadata (file, line, symbol origin).
 - **Findings Model:** coherence issues with severity, description, and source locations.
+
+### 5.4 Source Acquisition Contract
+- **Inputs:**
+  - `AnalysisConfig.root_path` pointing to the project under analysis.
+- **Processing rules:**
+  - Fail fast if the root is missing or not compatible with the chosen acquirer (for example, missing `CMakeLists.txt` when using the CMake adapter).
+  - Walk the project tree, include only C/C++ sources and headers, and skip generated artifacts (such as the configured build directory).
+  - Normalize and sort paths for deterministic output.
+- **Outputs:**
+  - Deterministic list of absolute source/header paths ready for AST indexing.
+  - Normalized root path shared across pipeline stages.
 
 ### 5.3 Module Dependencies
 - CLI Frontend depends on Source Acquisition and Reporting.
@@ -74,7 +87,7 @@
 
 ### Scenario: Analyze Repository for DSL Coherence
 1. **CLI Frontend** parses arguments (e.g., `dsl-extract analyze --format markdown,json --out reports/`).
-2. **Source Acquisition** loads configuration, resolves repository root, and reads `compile_commands.json`; outputs normalized file list and compilation settings.
+2. **Source Acquisition** loads configuration, resolves the repository root, and returns a normalized file list for analysis.
 3. **Parsing & AST Indexer** runs clang tooling to build the AST fact model; caches intermediate artifacts if enabled.
 4. **DSL Extraction Engine** transforms AST facts into DSL terms using configured heuristics or plug-ins.
 5. **Coherence Analyzer** evaluates DSL terms to find conflicts or ambiguities; produces findings.
@@ -87,7 +100,7 @@
 - **Environments:**
   - **Developer machines:** Linux and Windows with local clang toolchain; optional cache directory per repo.
   - **CI agents:** run CLI in build pipelines; artifacts (JSON/Markdown) stored as pipeline outputs.
-- **Configuration:** paths to toolchain, include directories, and compilation database provided via CLI args or config file.
+- **Configuration:** paths to toolchain and include directories provided via CLI args or config file.
 - **Data:** optional on-disk cache for AST facts stored under project `.dsl-cache/` to speed reruns; cleaned via CLI command.
 - Deployment diagram available at `docs/diagrams/arc42-section7-deployment.puml`.
 

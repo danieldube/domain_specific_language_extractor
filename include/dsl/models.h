@@ -12,6 +12,7 @@ struct AnalysisConfig {
 
 struct SourceAcquisitionResult {
   std::vector<std::string> files;
+  std::string project_root;
 };
 
 struct AstFact {

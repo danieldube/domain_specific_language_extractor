@@ -1,17 +1,9 @@
 #include <dsl/default_components.h>
 
-#include <algorithm>
 #include <sstream>
 #include <unordered_map>
 
 namespace dsl {
-
-SourceAcquisitionResult
-BasicSourceAcquirer::Acquire(const AnalysisConfig &config) {
-  SourceAcquisitionResult result;
-  result.files.push_back(config.root_path + "/sample.cpp");
-  return result;
-}
 
 AstIndex SimpleAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
   AstIndex index;
@@ -107,7 +99,7 @@ Report MarkdownReporter::Render(const DslExtractionResult &extraction,
 
 AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
   AnalyzerPipelineBuilder builder;
-  builder.WithSourceAcquirer(std::make_unique<BasicSourceAcquirer>());
+  builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>());
   builder.WithIndexer(std::make_unique<SimpleAstIndexer>());
   builder.WithExtractor(std::make_unique<HeuristicDslExtractor>());
   builder.WithAnalyzer(std::make_unique<RuleBasedCoherenceAnalyzer>());
@@ -147,7 +139,7 @@ AnalyzerPipelineBuilder::WithReporter(std::unique_ptr<Reporter> reporter) {
 
 DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
   if (!components_.source_acquirer) {
-    components_.source_acquirer = std::make_unique<BasicSourceAcquirer>();
+    components_.source_acquirer = std::make_unique<CMakeSourceAcquirer>();
   }
   if (!components_.indexer) {
     components_.indexer = std::make_unique<SimpleAstIndexer>();
