@@ -11,8 +11,7 @@ namespace dsl {
 namespace {
 bool IsSourceExtension(const std::filesystem::path &path) {
   static const std::set<std::string> kExtensions = {
-      ".c",  ".cc",  ".cxx", ".cpp", ".h",   ".hh",
-      ".hpp", ".hxx", ".ixx"};
+      ".c", ".cc", ".cxx", ".cpp", ".h", ".hh", ".hpp", ".hxx", ".ixx"};
   return kExtensions.count(path.extension().string()) > 0;
 }
 
@@ -29,8 +28,7 @@ bool IsWithin(const std::filesystem::path &candidate,
   return std::distance(parent.begin(), parent.end()) <=
              std::distance(normalized_candidate.begin(),
                            normalized_candidate.end()) &&
-         std::equal(parent.begin(), parent.end(),
-                    normalized_candidate.begin());
+         std::equal(parent.begin(), parent.end(), normalized_candidate.begin());
 }
 
 std::filesystem::path ResolveRootPath(const AnalysisConfig &config) {
@@ -58,8 +56,9 @@ void RequireCMakeProject(const std::filesystem::path &root) {
   }
 }
 
-std::vector<std::string> CollectSourceFiles(
-    const std::filesystem::path &root, const std::filesystem::path &build_dir) {
+std::vector<std::string>
+CollectSourceFiles(const std::filesystem::path &root,
+                   const std::filesystem::path &build_dir) {
   std::vector<std::string> files;
 
   for (std::filesystem::recursive_directory_iterator it(root), end; it != end;
