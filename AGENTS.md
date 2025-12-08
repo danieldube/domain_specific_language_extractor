@@ -257,21 +257,6 @@ Filter tests:
 ctest --test-dir build -R "<regex>" --output-on-failure
 ```
 
-### 16.5 Static analysis
-
-clang-tidy via CMake:
-
-```bash
-cmake -S . -B build-tidy -G Ninja   -DCMAKE_CXX_CLANG_TIDY="clang-tidy;-warnings-as-errors=*"
-cmake --build build-tidy -j
-```
-
-Optional cppcheck:
-
-```bash
-cppcheck --std=c++14 --enable=warning,performance,portability,style          --inline-suppr --error-exitcode=1 src include
-```
-
 ### 16.6 Formatting
 
 One style per repo. Enforce with clang-format.
@@ -279,13 +264,7 @@ One style per repo. Enforce with clang-format.
 Format all files:
 
 ```bash
-clang-format -i $(git ls-files '*.hpp' '*.h' '*.ipp' '*.cpp' '*.cc' '*.cxx')
-```
-
-Check only:
-
-```bash
-clang-format --dry-run --Werror $(git ls-files '*.hpp' '*.h' '*.ipp' '*.cpp' '*.cc' '*.cxx')
+pre-commit run clang-format -a
 ```
 
 ### 16.7 Coverage (optional)
@@ -313,47 +292,13 @@ pre-commit install                # installs git hooks
 pre-commit run --all-files        # run on entire repo
 ```
 
-### 17.2 Typical hooks
-
-Keep `.pre-commit-config.yaml` in the repo. Example minimal set:
-
-```yaml
-repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-json
-      - id: pretty-format-json
-        args: ["--autofix", "--no-ensure-ascii", "--indent=2"]
-      - id: check-merge-conflict
-  - repo: https://github.com/cpplint/cpplint
-    rev: 1.6.1
-    hooks:
-      - id: cpplint
-        args: ["--extensions=hpp,h,ipp,cpp,cc,cxx", "--filter=-legal/copyright"]
-  - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v18.1.8
-    hooks:
-      - id: clang-format
-  - repo: https://github.com/pocc/pre-commit-hooks
-    rev: v1.3.5
-    hooks:
-      - id: clang-tidy
-        args: ["-p=build", "--warnings-as-errors=*"]
-        additional_dependencies: ["clang-tidy==18.*"]
-```
-
-Notes:
-* Tidy uses the compile database in `build/compile_commands.json`. Configure once before running.
+### 17.2 CI
 * CI must run `pre-commit run --all-files` as a gate.
 
 ### 17.3 Quick CI snippet
 
 ```bash
-pre-commit install -f --install-hooks
+pre-commit install
 pre-commit run --all-files
 ```
 
@@ -363,7 +308,7 @@ pre-commit run --all-files
 
 ```bash
 # 1) Configure build with warnings and sanitizers
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
 # 2) Run format + tidy via pre-commit on all files
 pre-commit run --all-files

@@ -21,11 +21,11 @@ quality characteristics remain visible for every task.
 Pre-commit checks are mandatory. Install the hooks and run them before every
 commit.
 
-### Linux (Ubuntu 20.04)
+### Linux (Ubuntu)
 1. Create and activate a virtual environment:
 
    ```bash
-   python3.8 -m venv .venv
+   python3 -m venv .venv
    source .venv/bin/activate
    ```
 
@@ -34,7 +34,6 @@ commit.
    ```bash
    pip install --upgrade pip pre-commit
    pre-commit install
-   pre-commit install-hooks
    ```
 
 3. Run the full suite on all files:
@@ -43,17 +42,11 @@ commit.
    pre-commit run --all-files
    ```
 
-4. To enable clang-tidy, generate `build/compile_commands.json` once:
-
-   ```bash
-   cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-   ```
-
 ### Windows (PowerShell)
 1. Create and activate a virtual environment:
 
    ```powershell
-   py -3.8 -m venv .venv
+   py -3 -m venv .venv
    .\.venv\Scripts\Activate.ps1
    ```
 
@@ -62,7 +55,6 @@ commit.
    ```powershell
    pip install --upgrade pip pre-commit
    pre-commit install
-   pre-commit install-hooks
    ```
 
 3. Run the full suite on all files:
@@ -70,7 +62,3 @@ commit.
    ```powershell
    pre-commit run --all-files
    ```
-
-4. To enable clang-tidy, generate `build/compile_commands.json` once with your
-   generator of choice (for example Ninja or Visual Studio) before running the
-   hook.
