@@ -39,7 +39,7 @@ private:
   std::filesystem::path root_;
 };
 
-TEST(BasicSourceAcquirerTest, ProducesNormalizedFileList) {
+TEST(CMakeSourceAcquirerTest, ProducesNormalizedFileList) {
   TemporaryProject project;
   project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
   const auto source_path = project.AddFile("src/main.cpp", "int main() {return 0;}");
@@ -52,29 +52,30 @@ TEST(BasicSourceAcquirerTest, ProducesNormalizedFileList) {
   AnalysisConfig config{.root_path = project.root().string(),
                         .formats = {"markdown"},
                         .build_directory = build_dir.string()};
-  BasicSourceAcquirer acquirer;
+  CMakeSourceAcquirer acquirer;
 
   const auto result = acquirer.Acquire(config);
 
-  EXPECT_EQ(
-      result.compile_commands_path,
-      std::filesystem::weakly_canonical(build_dir / "compile_commands.json")
-          .string());
-  EXPECT_EQ(result.normalized_root,
+  EXPECT_EQ(result.project_root,
             std::filesystem::weakly_canonical(project.root()).string());
+  const auto it = result.artifacts.find("compilation_database");
+  ASSERT_NE(it, result.artifacts.end());
+  EXPECT_EQ(it->second, std::filesystem::weakly_canonical(build_dir /
+                                                          "compile_commands.json")
+                            .string());
   EXPECT_THAT(result.files,
               ::testing::UnorderedElementsAre(
                   std::filesystem::weakly_canonical(source_path).string(),
                   std::filesystem::weakly_canonical(header_path).string()));
 }
 
-TEST(BasicSourceAcquirerTest, ThrowsWhenCompileCommandsMissing) {
+TEST(CMakeSourceAcquirerTest, ThrowsWhenCompilationDatabaseMissing) {
   TemporaryProject project;
   project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
   project.AddFile("src/example.cpp", "void example() {}");
 
   AnalysisConfig config{.root_path = project.root().string()};
-  BasicSourceAcquirer acquirer;
+  CMakeSourceAcquirer acquirer;
 
   EXPECT_THROW(acquirer.Acquire(config), std::runtime_error);
 }
@@ -82,8 +83,7 @@ TEST(BasicSourceAcquirerTest, ThrowsWhenCompileCommandsMissing) {
 TEST(SimpleAstIndexerTest, CreatesFactsForEachFile) {
   SourceAcquisitionResult sources;
   sources.files = {"/project/root/a.cpp", "/project/root/b.cpp"};
-  sources.compile_commands_path = "/project/root/build/compile_commands.json";
-  sources.normalized_root = "/project/root";
+  sources.project_root = "/project/root";
   SimpleAstIndexer indexer;
 
   const auto index = indexer.BuildIndex(sources);

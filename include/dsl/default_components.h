@@ -7,7 +7,7 @@
 
 namespace dsl {
 
-class BasicSourceAcquirer : public SourceAcquirer {
+class CMakeSourceAcquirer : public SourceAcquirer {
 public:
   SourceAcquisitionResult Acquire(const AnalysisConfig &config) override;
 };

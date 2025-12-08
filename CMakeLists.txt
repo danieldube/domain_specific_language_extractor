@@ -5,11 +5,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(dsl_core src/default_components.cpp)
+add_library(dsl_core src/default_components.cpp src/cmake_source_acquirer.cpp)
 
 target_sources(
   dsl_core
-  PRIVATE src/default_components.cpp
+  PRIVATE src/default_components.cpp src/cmake_source_acquirer.cpp
   PUBLIC FILE_SET
          HEADERS
          TYPE

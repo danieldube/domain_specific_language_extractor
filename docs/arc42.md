@@ -45,7 +45,7 @@
 
 ### 5.1 High-Level Components
 - **CLI Frontend:** argument parsing, configuration loading, and command dispatch (e.g., `analyze`, `report`, `cache clean`).
-- **Source Acquisition:** resolves repository root, enforces presence of `CMakeLists.txt`, locates the compilation database (`compile_commands.json`) from an explicit path, root, or build directory, normalizes source file paths, and filters out generated/build artifacts.
+- **Source Acquisition:** resolves repository root, enforces presence of `CMakeLists.txt`, locates the compilation database (`compile_commands.json`) from an explicit path, root, or build directory, normalizes source file paths, and filters out generated/build artifacts. The CMake-specific logic lives in a `CMakeSourceAcquirer` adapter while the shared data models stay agnostic to the build system.
 - **Parsing & AST Indexer:** wraps clang tooling to produce a semantic index (symbols, types, call graph, comments); caches results for reuse.
 - **DSL Extraction Engine:** converts AST facts into DSL terms (domain entities, actions, relationships) using deterministic heuristics; optionally enriches via LLM strategies behind a small interface.
 - **Coherence Analyzer:** detects conflicting or ambiguous DSL usage across modules and files; maps findings to locations.
@@ -58,8 +58,8 @@
 - **Fact sources:** relies on the AST index for symbol definitions, control-flow summaries (mutations, returns, exceptions), call graph edges, and basic type info to run the rules deterministically.
 
 ### 5.2 Data Structures
-- **AnalysisConfig:** provides `root_path`, preferred output `formats`, optional `build_directory`, and optional explicit `compile_commands_path` for CMake-based projects.
-- **SourceAcquisitionResult:** normalized `files` list (deduplicated, sorted), resolved `compile_commands_path`, and `normalized_root` used by downstream stages.
+- **AnalysisConfig:** provides `root_path`, preferred output `formats`, optional `build_directory`, and optional explicit `compilation_database_path` override for analysis tooling.
+- **SourceAcquisitionResult:** normalized `files` list (deduplicated, sorted), `project_root`, and a generic `artifacts` map for build-tool-specific metadata (e.g., `compilation_database`).
 - **AST Fact Model:** normalized representation of declarations, definitions, symbol references, and comments.
 - **DSL Term Model:** typed objects for entities, actions, relationships, and provenance metadata (file, line, symbol origin).
 - **Findings Model:** coherence issues with severity, description, and source locations.
@@ -68,16 +68,16 @@
 - **Inputs:**
   - `AnalysisConfig.root_path` pointing to a CMake project containing `CMakeLists.txt`.
   - Optional `AnalysisConfig.build_directory` (defaults to `<root>/build`).
-  - Optional `AnalysisConfig.compile_commands_path` override; otherwise resolved from `<root>/compile_commands.json` or `<build>/compile_commands.json`.
+  - Optional `AnalysisConfig.compilation_database_path` override; otherwise resolved from `<root>/compile_commands.json` or `<build>/compile_commands.json`.
 - **Processing rules:**
   - Fail fast if the root is missing or not a CMake project.
-  - Fail if `compile_commands.json` cannot be resolved.
+  - Fail if a compilation database cannot be resolved.
   - Walk the project tree, include only C/C++ sources and headers, and skip the build directory to avoid generated artifacts.
   - Normalize and sort paths for deterministic output.
 - **Outputs:**
   - Deterministic list of absolute source/header paths ready for AST indexing.
-  - Absolute path to `compile_commands.json` for the AST indexer.
   - Normalized root path shared across pipeline stages.
+  - Generic artifact map containing the resolved compilation database path.
 
 ### 5.3 Module Dependencies
 - CLI Frontend depends on Source Acquisition and Reporting.

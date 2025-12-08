@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace dsl {
 
@@ -9,13 +10,13 @@ struct AnalysisConfig {
   std::string root_path;
   std::vector<std::string> formats;
   std::string build_directory;
-  std::string compile_commands_path;
+  std::string compilation_database_path;
 };
 
 struct SourceAcquisitionResult {
   std::vector<std::string> files;
-  std::string compile_commands_path;
-  std::string normalized_root;
+  std::string project_root;
+  std::unordered_map<std::string, std::string> artifacts;
 };
 
 struct AstFact {
