@@ -2,75 +2,15 @@
 #include <dsl/interfaces.h>
 #include <dsl/models.h>
 
-#include <chrono>
 #include <filesystem>
-#include <fstream>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "test_support/temporary_project.h"
+
 namespace dsl {
 namespace {
-
-class TemporaryProject {
-public:
-  TemporaryProject() {
-    const auto timestamp =
-        std::chrono::steady_clock::now().time_since_epoch().count();
-    root_ = std::filesystem::temp_directory_path() /
-            ("dsl-acquirer-" + std::to_string(timestamp));
-    std::filesystem::create_directories(root_);
-  }
-
-  ~TemporaryProject() { std::filesystem::remove_all(root_); }
-
-  std::filesystem::path AddFile(const std::filesystem::path &relative,
-                                const std::string &content = "") const {
-    const auto full_path = root_ / relative;
-    std::filesystem::create_directories(full_path.parent_path());
-    std::ofstream stream(full_path);
-    stream << content;
-    return full_path;
-  }
-
-  const std::filesystem::path &root() const { return root_; }
-
-private:
-  std::filesystem::path root_;
-};
-
-TEST(CMakeSourceAcquirerTest, ProducesNormalizedFileList) {
-  TemporaryProject project;
-  project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
-  const auto source_path = project.AddFile("src/main.cpp", "int main() {return 0;}");
-  const auto header_path = project.AddFile("include/example.h", "void example();");
-  const auto build_dir = project.root() / "build";
-  std::filesystem::create_directories(build_dir);
-  project.AddFile("build/generated.cpp", "int generated();");
-
-  AnalysisConfig config{.root_path = project.root().string(),
-                        .formats = {"markdown"}};
-  CMakeSourceAcquirer acquirer;
-
-  const auto result = acquirer.Acquire(config);
-
-  EXPECT_EQ(result.project_root,
-            std::filesystem::weakly_canonical(project.root()).string());
-  EXPECT_THAT(result.files,
-              ::testing::UnorderedElementsAre(
-                  std::filesystem::weakly_canonical(source_path).string(),
-                  std::filesystem::weakly_canonical(header_path).string()));
-}
-
-TEST(CMakeSourceAcquirerTest, ThrowsWhenProjectIsNotCMakeBased) {
-  TemporaryProject project;
-  project.AddFile("src/example.cpp", "void example() {}");
-
-  AnalysisConfig config{.root_path = project.root().string()};
-  CMakeSourceAcquirer acquirer;
-
-  EXPECT_THROW(acquirer.Acquire(config), std::runtime_error);
-}
 
 TEST(SimpleAstIndexerTest, CreatesFactsForEachFile) {
   SourceAcquisitionResult sources;
@@ -143,9 +83,10 @@ TEST(MarkdownReporterTest, RendersSections) {
 }
 
 TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
-  TemporaryProject project;
+  test::TemporaryProject project;
   project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
-  const auto source_path = project.AddFile("src/pipeline.cpp", "int f() {return 1;}");
+  const auto source_path =
+      project.AddFile("src/pipeline.cpp", "int f() {return 1;}");
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
 

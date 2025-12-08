@@ -32,7 +32,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-set(TEST_SOURCES tests/components_test.cpp)
+set(TEST_SOURCES tests/components_test.cpp tests/cmake_source_acquirer_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})
 
 target_link_libraries(dsl_tests PRIVATE dsl_core GTest::gtest_main GTest::gmock)
