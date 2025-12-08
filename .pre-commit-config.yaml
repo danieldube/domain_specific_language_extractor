@@ -25,3 +25,19 @@ repos:
     hooks:
       - id: cmake-format
       - id: cmake-lint
+  - repo: local
+    hooks:
+      - id: create-compile-commands
+        name: create-compile-commands
+        entry: cmake
+        language: system
+        args: [ -Bbuild, -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ]
+        always_run: true
+        require_serial: true
+        pass_filenames: false
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: clang-tidy
+        args: [ -p=build/compile_commands.json --config-file=.clang-tidy ]
+        files: ^src/.*\.cpp$
