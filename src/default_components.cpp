@@ -6,17 +6,16 @@
 
 namespace dsl {
 
-SourceAcquisitionResult BasicSourceAcquirer::Acquire(
-    const AnalysisConfig& config) {
+SourceAcquisitionResult
+BasicSourceAcquirer::Acquire(const AnalysisConfig &config) {
   SourceAcquisitionResult result;
   result.files.push_back(config.root_path + "/sample.cpp");
   return result;
 }
 
-AstIndex SimpleAstIndexer::BuildIndex(
-    const SourceAcquisitionResult& sources) {
+AstIndex SimpleAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
   AstIndex index;
-  for (const auto& file : sources.files) {
+  for (const auto &file : sources.files) {
     AstFact fact;
     fact.name = "symbol_from_" + file;
     fact.kind = "function";
@@ -25,9 +24,9 @@ AstIndex SimpleAstIndexer::BuildIndex(
   return index;
 }
 
-DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex& index) {
+DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
   DslExtractionResult result;
-  for (const auto& fact : index.facts) {
+  for (const auto &fact : index.facts) {
     DslTerm term;
     term.name = fact.name;
     term.kind = fact.kind == "type" ? "Entity" : "Action";
@@ -46,19 +45,20 @@ DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex& index) {
   return result;
 }
 
-CoherenceResult RuleBasedCoherenceAnalyzer::Analyze(
-    const DslExtractionResult& extraction) {
+CoherenceResult
+RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
   CoherenceResult result;
   std::unordered_map<std::string, int> occurrence_counts;
-  for (const auto& term : extraction.terms) {
+  for (const auto &term : extraction.terms) {
     occurrence_counts[term.name] += 1;
   }
 
-  for (const auto& [name, count] : occurrence_counts) {
+  for (const auto &[name, count] : occurrence_counts) {
     if (count > 1) {
       Finding finding;
       finding.term = name;
-      finding.description = "Duplicate term name indicates incoherent DSL usage.";
+      finding.description =
+          "Duplicate term name indicates incoherent DSL usage.";
       result.findings.push_back(finding);
     }
   }
@@ -73,20 +73,20 @@ CoherenceResult RuleBasedCoherenceAnalyzer::Analyze(
   return result;
 }
 
-Report MarkdownReporter::Render(const DslExtractionResult& extraction,
-                                const CoherenceResult& coherence,
-                                const AnalysisConfig& config) {
+Report MarkdownReporter::Render(const DslExtractionResult &extraction,
+                                const CoherenceResult &coherence,
+                                const AnalysisConfig &config) {
   std::ostringstream output;
   output << "# DSL Extraction Report\n\n";
   output << "Source root: " << config.root_path << "\n\n";
 
   output << "## Terms\n";
-  for (const auto& term : extraction.terms) {
+  for (const auto &term : extraction.terms) {
     output << "- " << term.name << " (" << term.kind << "): " << term.definition
            << "\n";
   }
   output << "\n## Relationships\n";
-  for (const auto& relationship : extraction.relationships) {
+  for (const auto &relationship : extraction.relationships) {
     output << "- " << relationship.subject << " " << relationship.verb << " "
            << relationship.object << "\n";
   }
@@ -95,7 +95,7 @@ Report MarkdownReporter::Render(const DslExtractionResult& extraction,
   if (coherence.findings.empty()) {
     output << "- None\n";
   } else {
-    for (const auto& finding : coherence.findings) {
+    for (const auto &finding : coherence.findings) {
       output << "- " << finding.term << ": " << finding.description << "\n";
     }
   }
@@ -115,32 +115,32 @@ AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
   return builder;
 }
 
-AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithSourceAcquirer(
+AnalyzerPipelineBuilder &AnalyzerPipelineBuilder::WithSourceAcquirer(
     std::unique_ptr<SourceAcquirer> source_acquirer) {
   components_.source_acquirer = std::move(source_acquirer);
   return *this;
 }
 
-AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithIndexer(
-    std::unique_ptr<AstIndexer> indexer) {
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithIndexer(std::unique_ptr<AstIndexer> indexer) {
   components_.indexer = std::move(indexer);
   return *this;
 }
 
-AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithExtractor(
+AnalyzerPipelineBuilder &AnalyzerPipelineBuilder::WithExtractor(
     std::unique_ptr<DslExtractor> extractor) {
   components_.extractor = std::move(extractor);
   return *this;
 }
 
-AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithAnalyzer(
+AnalyzerPipelineBuilder &AnalyzerPipelineBuilder::WithAnalyzer(
     std::unique_ptr<CoherenceAnalyzer> analyzer) {
   components_.analyzer = std::move(analyzer);
   return *this;
 }
 
-AnalyzerPipelineBuilder& AnalyzerPipelineBuilder::WithReporter(
-    std::unique_ptr<Reporter> reporter) {
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithReporter(std::unique_ptr<Reporter> reporter) {
   components_.reporter = std::move(reporter);
   return *this;
 }
@@ -171,7 +171,7 @@ DefaultAnalyzerPipeline::DefaultAnalyzerPipeline(PipelineComponents components)
       analyzer_(std::move(components.analyzer)),
       reporter_(std::move(components.reporter)) {}
 
-PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig& config) {
+PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig &config) {
   const auto sources = source_acquirer_->Acquire(config);
   const auto index = indexer_->BuildIndex(sources);
   const auto extraction = extractor_->Extract(index);
@@ -181,5 +181,4 @@ PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig& config) {
   return PipelineResult{report, coherence, extraction};
 }
 
-}  // namespace dsl
-
+} // namespace dsl

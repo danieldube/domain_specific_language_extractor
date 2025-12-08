@@ -32,7 +32,7 @@
 - Repository uses pre-commit, clang-format, and clang-tidy; new code must conform.
 
 ## 3. System Scope and Context
-*To be detailed (business context and technical context diagrams, interfaces, and external dependencies).* 
+*To be detailed (business context and technical context diagrams, interfaces, and external dependencies).*
 
 ## 4. Solution Strategy
 - Adopt a **single-process CLI pipeline** (ADR 0001) with modular stages: source acquisition, clang-based parsing, DSL extraction, coherence analysis, and reporting.
@@ -104,10 +104,10 @@
 - **ADR 0001:** Adopt modular single-process CLI pipeline with staged analysis and plug-in extension points (`docs/adr/0001-modular-cli-pipeline.md`).
 
 ## 10. Quality Requirements
-*To be detailed (quality tree and scenarios aligned with architecture characteristics).* 
+*To be detailed (quality tree and scenarios aligned with architecture characteristics).*
 
 ## 11. Risks and Technical Debt
-*To be detailed (open risks, mitigations, and technical debt items).* 
+*To be detailed (open risks, mitigations, and technical debt items).*
 
 ## 12. Glossary
-*To be detailed (domain terms, acronyms, and definitions).* 
+*To be detailed (domain terms, acronyms, and definitions).*

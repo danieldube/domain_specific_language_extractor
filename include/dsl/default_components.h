@@ -1,37 +1,37 @@
 #pragma once
 
+#include <dsl/interfaces.h>
+
 #include <memory>
 #include <string>
-
-#include <dsl/interfaces.h>
 
 namespace dsl {
 
 class BasicSourceAcquirer : public SourceAcquirer {
- public:
-  SourceAcquisitionResult Acquire(const AnalysisConfig& config) override;
+public:
+  SourceAcquisitionResult Acquire(const AnalysisConfig &config) override;
 };
 
 class SimpleAstIndexer : public AstIndexer {
- public:
-  AstIndex BuildIndex(const SourceAcquisitionResult& sources) override;
+public:
+  AstIndex BuildIndex(const SourceAcquisitionResult &sources) override;
 };
 
 class HeuristicDslExtractor : public DslExtractor {
- public:
-  DslExtractionResult Extract(const AstIndex& index) override;
+public:
+  DslExtractionResult Extract(const AstIndex &index) override;
 };
 
 class RuleBasedCoherenceAnalyzer : public CoherenceAnalyzer {
- public:
-  CoherenceResult Analyze(const DslExtractionResult& extraction) override;
+public:
+  CoherenceResult Analyze(const DslExtractionResult &extraction) override;
 };
 
 class MarkdownReporter : public Reporter {
- public:
-  Report Render(const DslExtractionResult& extraction,
-                const CoherenceResult& coherence,
-                const AnalysisConfig& config) override;
+public:
+  Report Render(const DslExtractionResult &extraction,
+                const CoherenceResult &coherence,
+                const AnalysisConfig &config) override;
 };
 
 class DefaultAnalyzerPipeline;
@@ -45,31 +45,31 @@ struct PipelineComponents {
 };
 
 class AnalyzerPipelineBuilder {
- public:
-  AnalyzerPipelineBuilder& WithSourceAcquirer(
-      std::unique_ptr<SourceAcquirer> source_acquirer);
-  AnalyzerPipelineBuilder& WithIndexer(std::unique_ptr<AstIndexer> indexer);
-  AnalyzerPipelineBuilder& WithExtractor(
-      std::unique_ptr<DslExtractor> extractor);
-  AnalyzerPipelineBuilder& WithAnalyzer(
-      std::unique_ptr<CoherenceAnalyzer> analyzer);
-  AnalyzerPipelineBuilder& WithReporter(std::unique_ptr<Reporter> reporter);
+public:
+  AnalyzerPipelineBuilder &
+  WithSourceAcquirer(std::unique_ptr<SourceAcquirer> source_acquirer);
+  AnalyzerPipelineBuilder &WithIndexer(std::unique_ptr<AstIndexer> indexer);
+  AnalyzerPipelineBuilder &
+  WithExtractor(std::unique_ptr<DslExtractor> extractor);
+  AnalyzerPipelineBuilder &
+  WithAnalyzer(std::unique_ptr<CoherenceAnalyzer> analyzer);
+  AnalyzerPipelineBuilder &WithReporter(std::unique_ptr<Reporter> reporter);
 
   DefaultAnalyzerPipeline Build();
 
   static AnalyzerPipelineBuilder WithDefaults();
 
- private:
+private:
   PipelineComponents components_;
 };
 
 class DefaultAnalyzerPipeline : public AnalyzerPipeline {
- public:
+public:
   explicit DefaultAnalyzerPipeline(PipelineComponents components);
 
-  PipelineResult Run(const AnalysisConfig& config) override;
+  PipelineResult Run(const AnalysisConfig &config) override;
 
- private:
+private:
   std::unique_ptr<SourceAcquirer> source_acquirer_;
   std::unique_ptr<AstIndexer> indexer_;
   std::unique_ptr<DslExtractor> extractor_;
@@ -77,5 +77,4 @@ class DefaultAnalyzerPipeline : public AnalyzerPipeline {
   std::unique_ptr<Reporter> reporter_;
 };
 
-}  // namespace dsl
-
+} // namespace dsl

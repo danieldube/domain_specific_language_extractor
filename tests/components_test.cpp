@@ -59,8 +59,7 @@ TEST(RuleBasedCoherenceAnalyzerTest, FlagsMissingRelationships) {
 
 TEST(RuleBasedCoherenceAnalyzerTest, DetectsDuplicateTerms) {
   DslExtractionResult extraction;
-  extraction.terms = {{"shared", "Action", "One"},
-                      {"shared", "Action", "Two"}};
+  extraction.terms = {{"shared", "Action", "One"}, {"shared", "Action", "Two"}};
   extraction.relationships = {{"shared", "relates", "shared"}};
   RuleBasedCoherenceAnalyzer analyzer;
 
@@ -75,7 +74,8 @@ TEST(MarkdownReporterTest, RendersSections) {
   extraction.terms = {{"verb", "Action", "Derived from verb"}};
   extraction.relationships = {};
   CoherenceResult coherence;
-  coherence.findings = {{"verb", "No relationships detected; DSL may be incomplete."}};
+  coherence.findings = {
+      {"verb", "No relationships detected; DSL may be incomplete."}};
   MarkdownReporter reporter;
   AnalysisConfig config{.root_path = "repo"};
 
@@ -95,10 +95,10 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
 
   ASSERT_FALSE(result.extraction.terms.empty());
   EXPECT_FALSE(result.report.markdown.empty());
-  EXPECT_EQ(result.extraction.terms.front().name, "symbol_from_repo/sample.cpp");
+  EXPECT_EQ(result.extraction.terms.front().name,
+            "symbol_from_repo/sample.cpp");
   EXPECT_FALSE(result.coherence.findings.empty());
 }
 
-}  // namespace
-}  // namespace dsl
-
+} // namespace
+} // namespace dsl
