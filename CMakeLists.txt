@@ -5,11 +5,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(dsl_core src/default_components.cpp src/cmake_source_acquirer.cpp)
+add_library(dsl_core src/default_components.cpp src/cmake_source_acquirer.cpp
+                     src/markdown_reporter.cpp)
 
 target_sources(
   dsl_core
   PRIVATE src/default_components.cpp src/cmake_source_acquirer.cpp
+          src/markdown_reporter.cpp
   PUBLIC FILE_SET
          HEADERS
          TYPE
@@ -32,7 +34,8 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-set(TEST_SOURCES tests/components_test.cpp tests/cmake_source_acquirer_test.cpp)
+set(TEST_SOURCES tests/components_test.cpp tests/cmake_source_acquirer_test.cpp
+                 tests/markdown_reporter_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})
 
 target_link_libraries(dsl_tests PRIVATE dsl_core GTest::gtest_main GTest::gmock)
