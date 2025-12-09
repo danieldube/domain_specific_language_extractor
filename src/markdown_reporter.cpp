@@ -67,14 +67,16 @@ std::string BuildAnalysisHeaderMarkdown(const AnalysisConfig &config,
   section << "| Generated On | " << timestamp << " |\n";
   section << "| Source | " << config.root_path << " |\n";
   section << "| Scope Notes | "
-          << (config.scope_notes.empty() ? "None" : config.scope_notes) << " |\n\n";
+          << (config.scope_notes.empty() ? "None" : config.scope_notes)
+          << " |\n\n";
   return section.str();
 }
 
 std::string BuildTermsMarkdown(const DslExtractionResult &extraction) {
   std::ostringstream section;
   section << "## Canonical Terms (Glossary)\n\n";
-  section << "| Term | Kind | Definition | Evidence | Aliases | Usage Count |\n";
+  section
+      << "| Term | Kind | Definition | Evidence | Aliases | Usage Count |\n";
   section << "| --- | --- | --- | --- | --- | --- |\n";
   if (extraction.terms.empty()) {
     section << "| None | - | - | - | - | - |\n\n";
@@ -83,9 +85,9 @@ std::string BuildTermsMarkdown(const DslExtractionResult &extraction) {
 
   for (const auto &term : extraction.terms) {
     section << "| " << term.name << " | " << term.kind << " | "
-            << term.definition << " | " << JoinWithBreaks(term.evidence) << " | "
-            << JoinWithBreaks(term.aliases) << " | " << term.usage_count
-            << " |\n";
+            << term.definition << " | " << JoinWithBreaks(term.evidence)
+            << " | " << JoinWithBreaks(term.aliases) << " | "
+            << term.usage_count << " |\n";
   }
   section << "\n";
   return section.str();
@@ -133,7 +135,8 @@ std::string BuildWorkflowsMarkdown(const DslExtractionResult &extraction) {
 std::string BuildIncoherenceMarkdown(const CoherenceResult &coherence) {
   std::ostringstream section;
   section << "## Incoherence Report\n\n";
-  section << "| Term | Conflict | Examples | Suggested Canonical Form | Details |\n";
+  section << "| Term | Conflict | Examples | Suggested Canonical Form | "
+             "Details |\n";
   section << "| --- | --- | --- | --- | --- |\n";
 
   if (coherence.findings.empty()) {
@@ -143,19 +146,23 @@ std::string BuildIncoherenceMarkdown(const CoherenceResult &coherence) {
 
   for (const auto &finding : coherence.findings) {
     section << "| " << finding.term << " | "
-            << (finding.conflict.empty() ? finding.description : finding.conflict)
+            << (finding.conflict.empty() ? finding.description
+                                         : finding.conflict)
             << " | " << JoinWithBreaks(finding.examples) << " | "
-            << (finding.suggested_canonical_form.empty() ? "-"
-                                                         : finding.suggested_canonical_form)
+            << (finding.suggested_canonical_form.empty()
+                    ? "-"
+                    : finding.suggested_canonical_form)
             << " | "
-            << (finding.description.empty() ? finding.conflict : finding.description)
+            << (finding.description.empty() ? finding.conflict
+                                            : finding.description)
             << " |\n";
   }
   section << "\n";
   return section.str();
 }
 
-std::string BuildExtractionNotesMarkdown(const DslExtractionResult &extraction) {
+std::string
+BuildExtractionNotesMarkdown(const DslExtractionResult &extraction) {
   std::ostringstream section;
   section << "## Extraction Notes\n\n";
   if (extraction.extraction_notes.empty()) {
@@ -176,7 +183,8 @@ std::string BuildAnalysisHeaderJson(const AnalysisConfig &config,
   json << "\"generated_on\": \"" << EscapeJsonString(timestamp) << "\",";
   json << "\"source\": \"" << EscapeJsonString(config.root_path) << "\",";
   json << "\"scope_notes\": \""
-       << EscapeJsonString(config.scope_notes.empty() ? "None" : config.scope_notes)
+       << EscapeJsonString(config.scope_notes.empty() ? "None"
+                                                      : config.scope_notes)
        << "\"}";
   return json.str();
 }
