@@ -3,6 +3,7 @@
 #include <dsl/models.h>
 
 #include <filesystem>
+#include <fstream>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -11,19 +12,6 @@
 
 namespace dsl {
 namespace {
-
-TEST(SimpleAstIndexerTest, CreatesFactsForEachFile) {
-  SourceAcquisitionResult sources;
-  sources.files = {"/project/root/a.cpp", "/project/root/b.cpp"};
-  sources.project_root = "/project/root";
-  SimpleAstIndexer indexer;
-
-  const auto index = indexer.BuildIndex(sources);
-
-  ASSERT_EQ(index.facts.size(), 2u);
-  EXPECT_EQ(index.facts.at(0).name, "symbol_from_/project/root/a.cpp");
-  EXPECT_EQ(index.facts.at(1).name, "symbol_from_/project/root/b.cpp");
-}
 
 TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
   AstIndex index;
@@ -89,6 +77,19 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
       project.AddFile("src/pipeline.cpp", "int f() {return 1;}");
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
+  const auto compile_commands_path = build_dir / "compile_commands.json";
+  {
+    std::ofstream compile_commands(compile_commands_path);
+    compile_commands << "[\\n";
+    compile_commands << "  {\\n";
+    compile_commands << "    \"directory\": \"" << build_dir.string()
+                     << "\",\\n";
+    compile_commands << "    \"file\": \""
+                     << std::filesystem::weakly_canonical(source_path).string()
+                     << "\"\\n";
+    compile_commands << "  }\\n";
+    compile_commands << "]\n";
+  }
 
   AnalysisConfig config{.root_path = project.root().string(),
                         .formats = {"markdown", "json"}};
@@ -99,9 +100,7 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
   ASSERT_FALSE(result.extraction.terms.empty());
   EXPECT_FALSE(result.report.markdown.empty());
   EXPECT_FALSE(result.report.json.empty());
-  EXPECT_EQ(result.extraction.terms.front().name,
-            "symbol_from_" +
-                std::filesystem::weakly_canonical(source_path).string());
+  EXPECT_EQ(result.extraction.terms.front().name, "f");
   EXPECT_FALSE(result.coherence.findings.empty());
 }
 

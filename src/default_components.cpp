@@ -4,17 +4,6 @@
 
 namespace dsl {
 
-AstIndex SimpleAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
-  AstIndex index;
-  for (const auto &file : sources.files) {
-    AstFact fact;
-    fact.name = "symbol_from_" + file;
-    fact.kind = "function";
-    index.facts.push_back(fact);
-  }
-  return index;
-}
-
 DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
   DslExtractionResult result;
   for (const auto &fact : index.facts) {
@@ -26,7 +15,11 @@ DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
       term.kind = "Action";
     }
     term.definition = "Derived from " + fact.name;
-    term.evidence.push_back(fact.name + ":1-5");
+    if (!fact.source_location.empty()) {
+      term.evidence.push_back(fact.source_location);
+    } else {
+      term.evidence.push_back(fact.name + ":1-5");
+    }
     term.aliases.push_back(fact.name + "Alias");
     term.usage_count = 1;
     result.terms.push_back(term);
@@ -94,7 +87,7 @@ RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
 AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
   AnalyzerPipelineBuilder builder;
   builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>());
-  builder.WithIndexer(std::make_unique<SimpleAstIndexer>());
+  builder.WithIndexer(std::make_unique<CompileCommandsAstIndexer>());
   builder.WithExtractor(std::make_unique<HeuristicDslExtractor>());
   builder.WithAnalyzer(std::make_unique<RuleBasedCoherenceAnalyzer>());
   builder.WithReporter(std::make_unique<MarkdownReporter>());
@@ -136,7 +129,7 @@ DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
     components_.source_acquirer = std::make_unique<CMakeSourceAcquirer>();
   }
   if (!components_.indexer) {
-    components_.indexer = std::make_unique<SimpleAstIndexer>();
+    components_.indexer = std::make_unique<CompileCommandsAstIndexer>();
   }
   if (!components_.extractor) {
     components_.extractor = std::make_unique<HeuristicDslExtractor>();

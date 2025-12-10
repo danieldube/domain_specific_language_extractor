@@ -1,0 +1,10 @@
+[
+  {
+    "directory": "__PROJECT_ROOT__/build",
+    "file": "__SOURCE_FILE__"
+  },
+  {
+    "directory": "__PROJECT_ROOT__/build",
+    "file": "__GENERATED_FILE__"
+  }
+]

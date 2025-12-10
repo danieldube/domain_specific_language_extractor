@@ -18,9 +18,14 @@ private:
   std::filesystem::path build_directory_;
 };
 
-class SimpleAstIndexer : public AstIndexer {
+class CompileCommandsAstIndexer : public AstIndexer {
 public:
+  explicit CompileCommandsAstIndexer(
+      std::filesystem::path compile_commands_path = {});
   AstIndex BuildIndex(const SourceAcquisitionResult &sources) override;
+
+private:
+  std::filesystem::path compile_commands_path_;
 };
 
 class HeuristicDslExtractor : public DslExtractor {
