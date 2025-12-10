@@ -83,10 +83,10 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
     compile_commands << "[\\n";
     compile_commands << "  {\\n";
     compile_commands << "    \"directory\": \"" << build_dir.string()
-                    << "\",\\n";
+                     << "\",\\n";
     compile_commands << "    \"file\": \""
-                    << std::filesystem::weakly_canonical(source_path).string()
-                    << "\"\\n";
+                     << std::filesystem::weakly_canonical(source_path).string()
+                     << "\"\\n";
     compile_commands << "  }\\n";
     compile_commands << "]\n";
   }

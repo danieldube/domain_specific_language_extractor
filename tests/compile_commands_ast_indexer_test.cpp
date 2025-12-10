@@ -32,12 +32,12 @@ void ReplaceAll(std::string &text, const std::string &placeholder,
 TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
   test::TemporaryProject project;
   const auto source_path = project.AddFile(
-      "src/example.cpp",
-      "struct Widget { int value; };\nint Add(int a, int b) { return a + b; }\ndouble threshold = 3.14;\n");
+      "src/example.cpp", "struct Widget { int value; };\nint Add(int a, int b) "
+                         "{ return a + b; }\ndouble threshold = 3.14;\n");
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
-  const auto generated_path = project.AddFile("build/generated.cpp",
-                                             "int Generated() { return 2; }\n");
+  const auto generated_path =
+      project.AddFile("build/generated.cpp", "int Generated() { return 2; }\n");
 
   const auto fixture_path = std::filesystem::path(__FILE__).parent_path() /
                             "test_support/fixtures/compile_commands.json";
@@ -45,7 +45,7 @@ TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
   for (const auto &[placeholder, value] :
        std::vector<std::pair<std::string, std::string>>{
            {"__PROJECT_ROOT__", project.root().string()},
-            {"__SOURCE_FILE__",
+           {"__SOURCE_FILE__",
             std::filesystem::weakly_canonical(source_path).string()},
            {"__GENERATED_FILE__",
             std::filesystem::weakly_canonical(generated_path).string()}}) {
@@ -91,8 +91,8 @@ TEST(CompileCommandsAstIndexerTest, SkipsBuildDirectoryEntries) {
   test::TemporaryProject project;
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
-  const auto build_file = project.AddFile("build/generated.cpp",
-                                         "int Generated() { return 2; }\n");
+  const auto build_file =
+      project.AddFile("build/generated.cpp", "int Generated() { return 2; }\n");
 
   const auto compile_commands_path = build_dir / "compile_commands.json";
   {

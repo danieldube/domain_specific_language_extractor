@@ -31,7 +31,8 @@ bool IsWithin(const std::filesystem::path &candidate,
          std::equal(parent.begin(), parent.end(), normalized_candidate.begin());
 }
 
-std::vector<CompileCommandEntry> ParseCompileCommands(const std::string &content) {
+std::vector<CompileCommandEntry>
+ParseCompileCommands(const std::string &content) {
   std::vector<CompileCommandEntry> entries;
   const std::regex object_regex("\\{[^\\}]*\\}");
   const std::regex file_regex(R"_("file"\s*:\s*"([^"]+)")_");
@@ -60,9 +61,9 @@ std::vector<CompileCommandEntry> ParseCompileCommands(const std::string &content
   return entries;
 }
 
-std::vector<std::filesystem::path> LoadTranslationUnits(
-    const std::filesystem::path &compile_commands_path,
-    const std::filesystem::path &project_root) {
+std::vector<std::filesystem::path>
+LoadTranslationUnits(const std::filesystem::path &compile_commands_path,
+                     const std::filesystem::path &project_root) {
   std::ifstream stream(compile_commands_path);
   if (!stream.is_open()) {
     throw std::runtime_error("Failed to open compile_commands.json at " +
@@ -124,9 +125,10 @@ void AddFunctionFacts(const std::string &line, std::size_t line_number,
 void AddTypeFacts(const std::string &line, std::size_t line_number,
                   const std::filesystem::path &file_path,
                   std::vector<AstFact> &facts) {
-  const std::regex type_regex(R"_((class|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*))_");
-  for (std::sregex_iterator it(line.begin(), line.end(), type_regex), end; it != end;
-       ++it) {
+  const std::regex type_regex(
+      R"_((class|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*))_");
+  for (std::sregex_iterator it(line.begin(), line.end(), type_regex), end;
+       it != end; ++it) {
     const auto &match = *it;
     AstFact fact;
     fact.name = match[2];
@@ -144,7 +146,8 @@ void AddVariableFacts(const std::string &line, std::size_t line_number,
     return;
   }
 
-  if (line.find('{') != std::string::npos || line.find('}') != std::string::npos) {
+  if (line.find('{') != std::string::npos ||
+      line.find('}') != std::string::npos) {
     return;
   }
 
@@ -161,8 +164,8 @@ void AddVariableFacts(const std::string &line, std::size_t line_number,
   }
 }
 
-std::vector<AstFact> ExtractFactsFromFile(
-    const std::filesystem::path &translation_unit_path) {
+std::vector<AstFact>
+ExtractFactsFromFile(const std::filesystem::path &translation_unit_path) {
   std::ifstream source(translation_unit_path);
   if (!source.is_open()) {
     return {};
@@ -190,14 +193,16 @@ CompileCommandsAstIndexer::CompileCommandsAstIndexer(
 AstIndex
 CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
   if (sources.project_root.empty()) {
-    throw std::invalid_argument("SourceAcquisitionResult.project_root is empty");
+    throw std::invalid_argument(
+        "SourceAcquisitionResult.project_root is empty");
   }
 
   const auto project_root =
       std::filesystem::weakly_canonical(sources.project_root);
   std::filesystem::path build_directory;
   if (!sources.build_directory.empty()) {
-    build_directory = std::filesystem::weakly_canonical(sources.build_directory);
+    build_directory =
+        std::filesystem::weakly_canonical(sources.build_directory);
   }
 
   std::filesystem::path compile_commands_path = compile_commands_path_;
@@ -211,7 +216,8 @@ CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
         "compile_commands.json";
   }
 
-  compile_commands_path = std::filesystem::weakly_canonical(compile_commands_path);
+  compile_commands_path =
+      std::filesystem::weakly_canonical(compile_commands_path);
   if (!std::filesystem::exists(compile_commands_path)) {
     throw std::runtime_error("compile_commands.json not found at " +
                              compile_commands_path.string());
