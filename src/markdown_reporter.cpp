@@ -4,50 +4,55 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <unordered_map>
 
 namespace dsl {
 namespace {
 
 std::string EscapeJsonString(const std::string &value) {
-  std::ostringstream escaped;
+  static const std::unordered_map<char, std::string> replacements{
+      {'"', "\\\""},
+      {'\\', "\\\\"},
+      {'\n', "\\n"},
+      {'\r', "\\r"},
+      {'\t', "\\t"}};
+
+  std::string escaped;
+  escaped.reserve(value.size());
   for (const auto character : value) {
-    switch (character) {
-    case '"':
-      escaped << "\\\"";
-      break;
-    case '\\':
-      escaped << "\\\\";
-      break;
-    case '\n':
-      escaped << "\\n";
-      break;
-    case '\r':
-      escaped << "\\r";
-      break;
-    case '\t':
-      escaped << "\\t";
-      break;
-    default:
-      escaped << character;
-      break;
+    const auto replacement = replacements.find(character);
+    if (replacement != replacements.end()) {
+      escaped.append(replacement->second);
+    } else {
+      escaped.push_back(character);
     }
   }
-  return escaped.str();
+  return escaped;
+}
+
+template <typename Collection, typename Formatter>
+std::string Join(const Collection &items, const std::string &delimiter,
+                 Formatter formatter) {
+  std::ostringstream output;
+  bool first = true;
+  std::for_each(items.begin(), items.end(), [&](const auto &item) {
+    if (!first) {
+      output << delimiter;
+    }
+    output << formatter(item);
+    first = false;
+  });
+  return output.str();
 }
 
 std::string JoinWithBreaks(const std::vector<std::string> &items) {
-  if (items.empty()) {
-    return "";
-  }
+  return Join(items, "<br>", [](const std::string &value) { return value; });
+}
 
-  std::ostringstream joined;
-  for (std::size_t i = 0; i < items.size(); ++i) {
-    if (i > 0) {
-      joined << "<br>";
-    }
-    joined << items[i];
-  }
-  return joined.str();
+std::string JoinJsonArray(const std::vector<std::string> &values) {
+  return Join(values, ",", [](const std::string &value) {
+    return "\"" + EscapeJsonString(value) + "\"";
+  });
 }
 
 bool ShouldRenderFormat(const std::vector<std::string> &formats,
@@ -145,17 +150,17 @@ std::string BuildIncoherenceMarkdown(const CoherenceResult &coherence) {
   }
 
   for (const auto &finding : coherence.findings) {
-    section << "| " << finding.term << " | "
-            << (finding.conflict.empty() ? finding.description
-                                         : finding.conflict)
-            << " | " << JoinWithBreaks(finding.examples) << " | "
-            << (finding.suggested_canonical_form.empty()
-                    ? "-"
-                    : finding.suggested_canonical_form)
-            << " | "
-            << (finding.description.empty() ? finding.conflict
-                                            : finding.description)
-            << " |\n";
+    const auto conflict =
+        finding.conflict.empty() ? finding.description : finding.conflict;
+    const auto suggested_canonical = finding.suggested_canonical_form.empty()
+                                         ? "-"
+                                         : finding.suggested_canonical_form;
+    const auto details =
+        finding.description.empty() ? finding.conflict : finding.description;
+
+    section << "| " << finding.term << " | " << conflict << " | "
+            << JoinWithBreaks(finding.examples) << " | " << suggested_canonical
+            << " | " << details << " |\n";
   }
   section << "\n";
   return section.str();
@@ -200,22 +205,8 @@ std::string BuildTermsJson(const DslExtractionResult &extraction) {
     json << "{\"name\": \"" << EscapeJsonString(term.name) << "\",";
     json << "\"kind\": \"" << EscapeJsonString(term.kind) << "\",";
     json << "\"definition\": \"" << EscapeJsonString(term.definition) << "\",";
-    json << "\"evidence\": [";
-    for (std::size_t j = 0; j < term.evidence.size(); ++j) {
-      if (j > 0) {
-        json << ",";
-      }
-      json << "\"" << EscapeJsonString(term.evidence[j]) << "\"";
-    }
-    json << "],";
-    json << "\"aliases\": [";
-    for (std::size_t j = 0; j < term.aliases.size(); ++j) {
-      if (j > 0) {
-        json << ",";
-      }
-      json << "\"" << EscapeJsonString(term.aliases[j]) << "\"";
-    }
-    json << "],";
+    json << "\"evidence\": [" << JoinJsonArray(term.evidence) << "],";
+    json << "\"aliases\": [" << JoinJsonArray(term.aliases) << "],";
     json << "\"usage_count\": " << term.usage_count << "}";
   }
   json << "]";
@@ -234,14 +225,7 @@ std::string BuildRelationshipsJson(const DslExtractionResult &extraction) {
          << "\",";
     json << "\"verb\": \"" << EscapeJsonString(relationship.verb) << "\",";
     json << "\"object\": \"" << EscapeJsonString(relationship.object) << "\",";
-    json << "\"evidence\": [";
-    for (std::size_t j = 0; j < relationship.evidence.size(); ++j) {
-      if (j > 0) {
-        json << ",";
-      }
-      json << "\"" << EscapeJsonString(relationship.evidence[j]) << "\"";
-    }
-    json << "],";
+    json << "\"evidence\": [" << JoinJsonArray(relationship.evidence) << "],";
     json << "\"notes\": \"" << EscapeJsonString(relationship.notes) << "\",";
     json << "\"usage_count\": " << relationship.usage_count << "}";
   }
@@ -258,14 +242,7 @@ std::string BuildWorkflowsJson(const DslExtractionResult &extraction) {
       json << ",";
     }
     json << "{\"name\": \"" << EscapeJsonString(workflow.name) << "\",";
-    json << "\"steps\": [";
-    for (std::size_t j = 0; j < workflow.steps.size(); ++j) {
-      if (j > 0) {
-        json << ",";
-      }
-      json << "\"" << EscapeJsonString(workflow.steps[j]) << "\"";
-    }
-    json << "]}";
+    json << "\"steps\": [" << JoinJsonArray(workflow.steps) << "]}";
   }
   json << "]";
   return json.str();
@@ -281,14 +258,7 @@ std::string BuildIncoherenceJson(const CoherenceResult &coherence) {
     }
     json << "{\"term\": \"" << EscapeJsonString(finding.term) << "\",";
     json << "\"conflict\": \"" << EscapeJsonString(finding.conflict) << "\",";
-    json << "\"examples\": [";
-    for (std::size_t j = 0; j < finding.examples.size(); ++j) {
-      if (j > 0) {
-        json << ",";
-      }
-      json << "\"" << EscapeJsonString(finding.examples[j]) << "\"";
-    }
-    json << "],";
+    json << "\"examples\": [" << JoinJsonArray(finding.examples) << "],";
     json << "\"suggested_canonical_form\": \""
          << EscapeJsonString(finding.suggested_canonical_form) << "\",";
     json << "\"description\": \"" << EscapeJsonString(finding.description)
@@ -301,12 +271,7 @@ std::string BuildIncoherenceJson(const CoherenceResult &coherence) {
 std::string BuildExtractionNotesJson(const DslExtractionResult &extraction) {
   std::ostringstream json;
   json << "\"extraction_notes\": [";
-  for (std::size_t i = 0; i < extraction.extraction_notes.size(); ++i) {
-    if (i > 0) {
-      json << ",";
-    }
-    json << "\"" << EscapeJsonString(extraction.extraction_notes[i]) << "\"";
-  }
+  json << JoinJsonArray(extraction.extraction_notes);
   json << "]";
   return json.str();
 }

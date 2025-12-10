@@ -62,5 +62,30 @@ TEST(MarkdownReporterTest, RendersSections) {
   EXPECT_THAT(report.json, ::testing::HasSubstr("\"extraction_notes\""));
 }
 
+TEST(MarkdownReporterTest, JoinsListsWithDelimiters) {
+  DslExtractionResult extraction;
+  DslTerm term;
+  term.name = "term";
+  term.kind = "Kind";
+  term.definition = "Definition";
+  term.evidence = {"file:1", "file:2"};
+  term.aliases = {"alias1", "alias2"};
+  term.usage_count = 1;
+  extraction.terms = {term};
+
+  CoherenceResult coherence;
+  MarkdownReporter reporter;
+  AnalysisConfig config{.root_path = "repo", .formats = {"markdown", "json"}};
+
+  const auto report = reporter.Render(extraction, coherence, config);
+
+  EXPECT_THAT(report.markdown, ::testing::HasSubstr("file:1<br>file:2"));
+  EXPECT_THAT(report.markdown, ::testing::HasSubstr("alias1<br>alias2"));
+  EXPECT_THAT(report.json,
+              ::testing::HasSubstr("\"evidence\": [\"file:1\",\"file:2\"]"));
+  EXPECT_THAT(report.json,
+              ::testing::HasSubstr("\"aliases\": [\"alias1\",\"alias2\"]"));
+}
+
 } // namespace
 } // namespace dsl
