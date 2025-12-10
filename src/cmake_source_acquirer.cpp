@@ -31,6 +31,23 @@ bool IsWithin(const std::filesystem::path &candidate,
          std::equal(parent.begin(), parent.end(), normalized_candidate.begin());
 }
 
+bool IsBuildDirectory(const std::filesystem::directory_entry &entry,
+                      const std::filesystem::path &build_dir) {
+  if (!entry.is_directory()) {
+    return false;
+  }
+  return IsWithin(entry.path(), build_dir);
+}
+
+bool IsCollectableFile(const std::filesystem::directory_entry &entry,
+                       const std::filesystem::path &build_dir) {
+  if (!entry.is_regular_file()) {
+    return false;
+  }
+  const auto &path = entry.path();
+  return IsSourceExtension(path) && !IsWithin(path, build_dir);
+}
+
 std::filesystem::path ResolveRootPath(const AnalysisConfig &config) {
   if (config.root_path.empty()) {
     throw std::invalid_argument("AnalysisConfig.root_path must not be empty.");
@@ -64,26 +81,17 @@ CollectSourceFiles(const std::filesystem::path &root,
   for (std::filesystem::recursive_directory_iterator it(root), end; it != end;
        ++it) {
     const auto &entry = *it;
-    const auto path = entry.path();
-
-    if (entry.is_directory() && IsWithin(path, build_dir)) {
+    if (IsBuildDirectory(entry, build_dir)) {
       it.disable_recursion_pending();
       continue;
     }
 
-    if (!entry.is_regular_file()) {
+    if (!IsCollectableFile(entry, build_dir)) {
       continue;
     }
 
-    if (!IsSourceExtension(path)) {
-      continue;
-    }
-
-    if (IsWithin(path, build_dir)) {
-      continue;
-    }
-
-    files.push_back(std::filesystem::weakly_canonical(path).string());
+    files.push_back(
+        std::filesystem::weakly_canonical(entry.path()).string());
   }
 
   std::sort(files.begin(), files.end());

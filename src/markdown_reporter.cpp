@@ -55,6 +55,34 @@ std::string JoinJsonArray(const std::vector<std::string> &values) {
   });
 }
 
+std::string RelationshipNotes(const DslRelationship &relationship) {
+  if (relationship.notes.empty()) {
+    return "-";
+  }
+  return relationship.notes;
+}
+
+std::string ConflictText(const Finding &finding) {
+  if (!finding.conflict.empty()) {
+    return finding.conflict;
+  }
+  return finding.description;
+}
+
+std::string SuggestedCanonical(const Finding &finding) {
+  if (finding.suggested_canonical_form.empty()) {
+    return "-";
+  }
+  return finding.suggested_canonical_form;
+}
+
+std::string FindingDetails(const Finding &finding) {
+  if (!finding.description.empty()) {
+    return finding.description;
+  }
+  return finding.conflict;
+}
+
 bool ShouldRenderFormat(const std::vector<std::string> &formats,
                         const std::string &format) {
   if (formats.empty()) {
@@ -111,16 +139,11 @@ std::string BuildRelationshipsMarkdown(const DslExtractionResult &extraction) {
   }
 
   for (const auto &relationship : extraction.relationships) {
-    std::string relationship_notes = "-";
-    if (!relationship.notes.empty()) {
-      relationship_notes = relationship.notes;
-    }
-
     section << "| " << relationship.subject << " | " << relationship.verb
             << " | " << relationship.object << " | "
             << JoinWithBreaks(relationship.evidence) << " | "
-            << relationship_notes << " | " << relationship.usage_count
-            << " |\n";
+            << RelationshipNotes(relationship) << " | "
+            << relationship.usage_count << " |\n";
   }
   section << "\n";
   return section.str();
@@ -157,24 +180,11 @@ std::string BuildIncoherenceMarkdown(const CoherenceResult &coherence) {
   }
 
   for (const auto &finding : coherence.findings) {
-    std::string conflict = finding.description;
-    if (!finding.conflict.empty()) {
-      conflict = finding.conflict;
-    }
-
-    std::string suggested_canonical = "-";
-    if (!finding.suggested_canonical_form.empty()) {
-      suggested_canonical = finding.suggested_canonical_form;
-    }
-
-    std::string details = finding.conflict;
-    if (!finding.description.empty()) {
-      details = finding.description;
-    }
-
-    section << "| " << finding.term << " | " << conflict << " | "
-            << JoinWithBreaks(finding.examples) << " | " << suggested_canonical
-            << " | " << details << " |\n";
+    section << "| " << finding.term << " | "
+            << ConflictText(finding) << " | "
+            << JoinWithBreaks(finding.examples) << " | "
+            << SuggestedCanonical(finding) << " | "
+            << FindingDetails(finding) << " |\n";
   }
   section << "\n";
   return section.str();
