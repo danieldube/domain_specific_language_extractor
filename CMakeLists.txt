@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(dsl_core src/default_components.cpp src/cmake_source_acquirer.cpp
-                     src/markdown_reporter.cpp)
+                     src/markdown_reporter.cpp src/compile_commands_ast_indexer.cpp)
 
 target_sources(
   dsl_core
@@ -35,7 +35,8 @@ enable_testing()
 include(GoogleTest)
 
 set(TEST_SOURCES tests/components_test.cpp tests/cmake_source_acquirer_test.cpp
-                 tests/markdown_reporter_test.cpp)
+                 tests/markdown_reporter_test.cpp
+                 tests/compile_commands_ast_indexer_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})
 
 target_link_libraries(dsl_tests PRIVATE dsl_core GTest::gtest_main GTest::gmock)

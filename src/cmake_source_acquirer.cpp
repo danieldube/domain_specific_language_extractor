@@ -115,6 +115,7 @@ CMakeSourceAcquirer::Acquire(const AnalysisConfig &config) {
   SourceAcquisitionResult result;
   result.files = std::move(files);
   result.project_root = root.string();
+  result.build_directory = build_dir.string();
   return result;
 }
 

@@ -14,11 +14,13 @@ struct AnalysisConfig {
 struct SourceAcquisitionResult {
   std::vector<std::string> files;
   std::string project_root;
+  std::string build_directory;
 };
 
 struct AstFact {
   std::string name;
   std::string kind;
+  std::string source_location;
 };
 
 struct AstIndex {
