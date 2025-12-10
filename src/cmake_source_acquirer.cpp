@@ -90,8 +90,7 @@ CollectSourceFiles(const std::filesystem::path &root,
       continue;
     }
 
-    files.push_back(
-        std::filesystem::weakly_canonical(entry.path()).string());
+    files.push_back(std::filesystem::weakly_canonical(entry.path()).string());
   }
 
   std::sort(files.begin(), files.end());

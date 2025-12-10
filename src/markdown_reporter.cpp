@@ -180,11 +180,10 @@ std::string BuildIncoherenceMarkdown(const CoherenceResult &coherence) {
   }
 
   for (const auto &finding : coherence.findings) {
-    section << "| " << finding.term << " | "
-            << ConflictText(finding) << " | "
+    section << "| " << finding.term << " | " << ConflictText(finding) << " | "
             << JoinWithBreaks(finding.examples) << " | "
-            << SuggestedCanonical(finding) << " | "
-            << FindingDetails(finding) << " |\n";
+            << SuggestedCanonical(finding) << " | " << FindingDetails(finding)
+            << " |\n";
   }
   section << "\n";
   return section.str();

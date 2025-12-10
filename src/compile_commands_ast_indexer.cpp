@@ -54,7 +54,7 @@ std::optional<CompileCommandEntry> ParseEntry(const std::string &object_text,
 std::vector<CompileCommandEntry>
 ParseCompileCommands(const std::string &content) {
   std::vector<CompileCommandEntry> entries;
-  const std::regex object_regex("\\{[^\\}]*\\}");
+  const std::regex object_regex(R"(\{[^\}]*\})");
   const std::regex file_regex(R"_("file"\s*:\s*"([^"]+)")_");
   const std::regex directory_regex(R"_("directory"\s*:\s*"([^"]+)")_");
 
@@ -82,7 +82,7 @@ std::string ReadFileContents(const std::filesystem::path &path) {
 
 class TranslationUnitCollector {
 public:
-  explicit TranslationUnitCollector(std::filesystem::path project_root)
+  explicit TranslationUnitCollector(const std::filesystem::path &project_root)
       : project_root_(std::filesystem::weakly_canonical(project_root)) {}
 
   void Add(const CompileCommandEntry &entry) {
@@ -124,10 +124,10 @@ std::filesystem::path CanonicalPathOrEmpty(const std::string &path) {
   return std::filesystem::weakly_canonical(path);
 }
 
-std::filesystem::path ChooseCompileCommandsPath(
-    const std::filesystem::path &override_path,
-    const std::filesystem::path &project_root,
-    const std::filesystem::path &build_directory) {
+std::filesystem::path
+ChooseCompileCommandsPath(const std::filesystem::path &override_path,
+                          const std::filesystem::path &project_root,
+                          const std::filesystem::path &build_directory) {
   if (!override_path.empty()) {
     return std::filesystem::weakly_canonical(
         override_path.is_absolute() ? override_path
@@ -137,6 +137,9 @@ std::filesystem::path ChooseCompileCommandsPath(
   const auto base = build_directory.empty() ? project_root : build_directory;
   return std::filesystem::weakly_canonical(base / "compile_commands.json");
 }
+
+std::vector<AstFact>
+ExtractFactsFromFile(const std::filesystem::path &translation_unit_path);
 
 void AppendFactsFromUnit(const std::filesystem::path &unit,
                          std::unordered_set<std::string> &seen_facts,

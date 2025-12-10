@@ -11,9 +11,8 @@ dsl::DslTerm BuildTerm(const dsl::AstFact &fact) {
   term.name = fact.name;
   term.kind = fact.kind == "type" ? "Entity" : "Action";
   term.definition = "Derived from " + fact.name;
-  term.evidence.push_back(fact.source_location.empty()
-                              ? fact.name + ":1-5"
-                              : fact.source_location);
+  term.evidence.push_back(fact.source_location.empty() ? fact.name + ":1-5"
+                                                       : fact.source_location);
   term.aliases.push_back(fact.name + "Alias");
   term.usage_count = 1;
   return term;
@@ -114,8 +113,8 @@ void AddRelationshipMissingFinding(const dsl::DslExtractionResult &extraction,
 }
 
 template <typename Interface, typename Implementation>
-std::unique_ptr<Interface> EnsureComponent(
-    std::unique_ptr<Interface> component) {
+std::unique_ptr<Interface>
+EnsureComponent(std::unique_ptr<Interface> component) {
   if (component) {
     return component;
   }
@@ -187,14 +186,13 @@ DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
   components_.source_acquirer =
       EnsureComponent<SourceAcquirer, CMakeSourceAcquirer>(
           std::move(components_.source_acquirer));
-  components_.indexer =
-      EnsureComponent<AstIndexer, CompileCommandsAstIndexer>(
-          std::move(components_.indexer));
+  components_.indexer = EnsureComponent<AstIndexer, CompileCommandsAstIndexer>(
+      std::move(components_.indexer));
   components_.extractor = EnsureComponent<DslExtractor, HeuristicDslExtractor>(
       std::move(components_.extractor));
-  components_.analyzer = EnsureComponent<CoherenceAnalyzer,
-                                         RuleBasedCoherenceAnalyzer>(
-      std::move(components_.analyzer));
+  components_.analyzer =
+      EnsureComponent<CoherenceAnalyzer, RuleBasedCoherenceAnalyzer>(
+          std::move(components_.analyzer));
   components_.reporter = EnsureComponent<Reporter, MarkdownReporter>(
       std::move(components_.reporter));
   return DefaultAnalyzerPipeline(std::move(components_));
