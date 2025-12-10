@@ -1,6 +1,5 @@
 #include <dsl/default_components.h>
 
-#include <sstream>
 #include <unordered_map>
 
 namespace dsl {
@@ -23,6 +22,9 @@ DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
     term.name = fact.name;
     term.kind = fact.kind == "type" ? "Entity" : "Action";
     term.definition = "Derived from " + fact.name;
+    term.evidence.push_back(fact.name + ":1-5");
+    term.aliases.push_back(fact.name + "Alias");
+    term.usage_count = 1;
     result.terms.push_back(term);
   }
 
@@ -31,8 +33,24 @@ DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
     relationship.subject = result.terms[i - 1].name;
     relationship.verb = "precedes";
     relationship.object = result.terms[i].name;
+    relationship.evidence.push_back("call_site:10-12");
+    relationship.notes = "Sequential operation";
+    relationship.usage_count = 1;
     result.relationships.push_back(relationship);
   }
+
+  if (result.terms.size() > 1) {
+    DslExtractionResult::Workflow workflow;
+    workflow.name = "Heuristic workflow";
+    for (const auto &relationship : result.relationships) {
+      workflow.steps.push_back(relationship.subject + " -> " +
+                               relationship.object);
+    }
+    result.workflows.push_back(workflow);
+  }
+
+  result.extraction_notes.push_back(
+      "Heuristic extraction generated placeholder evidence and aliases.");
 
   return result;
 }
@@ -49,8 +67,10 @@ RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
     if (count > 1) {
       Finding finding;
       finding.term = name;
-      finding.description =
-          "Duplicate term name indicates incoherent DSL usage.";
+      finding.conflict = "Duplicate term name indicates incoherent DSL usage.";
+      finding.examples.push_back(name + ": duplicate usage");
+      finding.suggested_canonical_form = name;
+      finding.description = finding.conflict;
       result.findings.push_back(finding);
     }
   }
@@ -58,45 +78,15 @@ RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
   if (extraction.relationships.empty() && !extraction.terms.empty()) {
     Finding finding;
     finding.term = extraction.terms.front().name;
-    finding.description = "No relationships detected; DSL may be incomplete.";
+    finding.conflict = "No relationships detected; DSL may be incomplete.";
+    finding.examples.push_back("Relationships missing for term");
+    finding.suggested_canonical_form = extraction.terms.front().name;
+    finding.description = finding.conflict;
     result.findings.push_back(finding);
   }
 
   return result;
 }
-
-Report MarkdownReporter::Render(const DslExtractionResult &extraction,
-                                const CoherenceResult &coherence,
-                                const AnalysisConfig &config) {
-  std::ostringstream output;
-  output << "# DSL Extraction Report\n\n";
-  output << "Source root: " << config.root_path << "\n\n";
-
-  output << "## Terms\n";
-  for (const auto &term : extraction.terms) {
-    output << "- " << term.name << " (" << term.kind << "): " << term.definition
-           << "\n";
-  }
-  output << "\n## Relationships\n";
-  for (const auto &relationship : extraction.relationships) {
-    output << "- " << relationship.subject << " " << relationship.verb << " "
-           << relationship.object << "\n";
-  }
-
-  output << "\n## Findings\n";
-  if (coherence.findings.empty()) {
-    output << "- None\n";
-  } else {
-    for (const auto &finding : coherence.findings) {
-      output << "- " << finding.term << ": " << finding.description << "\n";
-    }
-  }
-
-  Report report;
-  report.markdown = output.str();
-  return report;
-}
-
 AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
   AnalyzerPipelineBuilder builder;
   builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>());
