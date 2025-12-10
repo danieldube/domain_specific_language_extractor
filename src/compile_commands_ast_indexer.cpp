@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <regex>
 #include <set>
 #include <stdexcept>
@@ -31,79 +32,136 @@ bool IsWithin(const std::filesystem::path &candidate,
          std::equal(parent.begin(), parent.end(), normalized_candidate.begin());
 }
 
+std::optional<CompileCommandEntry> ParseEntry(const std::string &object_text,
+                                              const std::regex &file_regex,
+                                              const std::regex &dir_regex) {
+  std::smatch file_match;
+  if (!std::regex_search(object_text, file_match, file_regex)) {
+    return std::nullopt;
+  }
+
+  CompileCommandEntry entry;
+  entry.file = file_match[1];
+
+  std::smatch directory_match;
+  if (std::regex_search(object_text, directory_match, dir_regex)) {
+    entry.directory = directory_match[1];
+  }
+
+  return entry;
+}
+
 std::vector<CompileCommandEntry>
 ParseCompileCommands(const std::string &content) {
   std::vector<CompileCommandEntry> entries;
-  const std::regex object_regex("\\{[^\\}]*\\}");
+  const std::regex object_regex(R"(\{[^\}]*\})");
   const std::regex file_regex(R"_("file"\s*:\s*"([^"]+)")_");
   const std::regex directory_regex(R"_("directory"\s*:\s*"([^"]+)")_");
 
   for (std::sregex_iterator it(content.begin(), content.end(), object_regex),
        end;
        it != end; ++it) {
-    const auto object_text = it->str();
-    std::smatch file_match;
-    if (!std::regex_search(object_text, file_match, file_regex)) {
-      continue;
+    const auto parsed = ParseEntry(it->str(), file_regex, directory_regex);
+    if (parsed) {
+      entries.push_back(*parsed);
     }
-
-    CompileCommandEntry entry;
-    entry.file = file_match[1];
-
-    std::smatch directory_match;
-    if (std::regex_search(object_text, directory_match, directory_regex)) {
-      entry.directory = directory_match[1];
-    }
-
-    entries.push_back(entry);
   }
 
   return entries;
 }
 
+std::string ReadFileContents(const std::filesystem::path &path) {
+  std::ifstream stream(path);
+  if (!stream.is_open()) {
+    throw std::runtime_error("Failed to open compile_commands.json at " +
+                             path.string());
+  }
+  return {std::istreambuf_iterator<char>(stream),
+          std::istreambuf_iterator<char>()};
+}
+
+class TranslationUnitCollector {
+public:
+  explicit TranslationUnitCollector(const std::filesystem::path &project_root)
+      : project_root_(std::filesystem::weakly_canonical(project_root)) {}
+
+  void Add(const CompileCommandEntry &entry) {
+    const auto path = CanonicalPath(entry);
+    if (path.empty() || seen_.count(path.string()) > 0) {
+      return;
+    }
+    if (!std::filesystem::exists(path) ||
+        !std::filesystem::is_regular_file(path) ||
+        !IsWithin(path, project_root_)) {
+      return;
+    }
+    translation_units_.push_back(path);
+    seen_.insert(path.string());
+  }
+
+  std::vector<std::filesystem::path> Release() { return translation_units_; }
+
+private:
+  std::filesystem::path CanonicalPath(const CompileCommandEntry &entry) const {
+    auto path = std::filesystem::path(entry.file);
+    if (path.is_relative() && !entry.directory.empty()) {
+      path = std::filesystem::path(entry.directory) / path;
+    } else if (path.is_relative()) {
+      path = project_root_ / path;
+    }
+    return std::filesystem::weakly_canonical(path);
+  }
+
+  std::filesystem::path project_root_;
+  std::unordered_set<std::string> seen_;
+  std::vector<std::filesystem::path> translation_units_;
+};
+
+std::filesystem::path CanonicalPathOrEmpty(const std::string &path) {
+  if (path.empty()) {
+    return {};
+  }
+  return std::filesystem::weakly_canonical(path);
+}
+
+std::filesystem::path
+ChooseCompileCommandsPath(const std::filesystem::path &override_path,
+                          const std::filesystem::path &project_root,
+                          const std::filesystem::path &build_directory) {
+  if (!override_path.empty()) {
+    return std::filesystem::weakly_canonical(
+        override_path.is_absolute() ? override_path
+                                    : project_root / override_path);
+  }
+
+  const auto base = build_directory.empty() ? project_root : build_directory;
+  return std::filesystem::weakly_canonical(base / "compile_commands.json");
+}
+
+std::vector<AstFact>
+ExtractFactsFromFile(const std::filesystem::path &translation_unit_path);
+
+void AppendFactsFromUnit(const std::filesystem::path &unit,
+                         std::unordered_set<std::string> &seen_facts,
+                         std::vector<AstFact> &facts) {
+  for (auto &fact : ExtractFactsFromFile(unit)) {
+    const auto fingerprint =
+        fact.name + "|" + fact.kind + "|" + fact.source_location;
+    if (seen_facts.insert(fingerprint).second) {
+      facts.push_back(std::move(fact));
+    }
+  }
+}
+
 std::vector<std::filesystem::path>
 LoadTranslationUnits(const std::filesystem::path &compile_commands_path,
                      const std::filesystem::path &project_root) {
-  std::ifstream stream(compile_commands_path);
-  if (!stream.is_open()) {
-    throw std::runtime_error("Failed to open compile_commands.json at " +
-                             compile_commands_path.string());
-  }
-
-  const std::string content((std::istreambuf_iterator<char>(stream)),
-                            std::istreambuf_iterator<char>());
-
-  std::vector<std::filesystem::path> translation_units;
-  std::unordered_set<std::string> seen;
+  const auto content = ReadFileContents(compile_commands_path);
+  TranslationUnitCollector collector(project_root);
   for (const auto &entry : ParseCompileCommands(content)) {
-    auto file_path = std::filesystem::path(entry.file);
-    if (file_path.is_relative()) {
-      if (!entry.directory.empty()) {
-        file_path = std::filesystem::path(entry.directory) / file_path;
-      } else {
-        file_path = project_root / file_path;
-      }
-    }
-
-    file_path = std::filesystem::weakly_canonical(file_path);
-    if (seen.count(file_path.string()) > 0) {
-      continue;
-    }
-
-    if (!std::filesystem::exists(file_path) ||
-        !std::filesystem::is_regular_file(file_path)) {
-      continue;
-    }
-
-    if (!IsWithin(file_path, project_root)) {
-      continue;
-    }
-
-    translation_units.push_back(file_path);
-    seen.insert(file_path.string());
+    collector.Add(entry);
   }
-
-  return translation_units;
+  return collector.Release();
 }
 
 void AddFunctionFacts(const std::string &line, std::size_t line_number,
@@ -199,25 +257,9 @@ CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
 
   const auto project_root =
       std::filesystem::weakly_canonical(sources.project_root);
-  std::filesystem::path build_directory;
-  if (!sources.build_directory.empty()) {
-    build_directory =
-        std::filesystem::weakly_canonical(sources.build_directory);
-  }
-
-  std::filesystem::path compile_commands_path = compile_commands_path_;
-  if (!compile_commands_path.empty() && !compile_commands_path.is_absolute()) {
-    compile_commands_path = project_root / compile_commands_path;
-  }
-
-  if (compile_commands_path.empty()) {
-    compile_commands_path =
-        (build_directory.empty() ? project_root : build_directory) /
-        "compile_commands.json";
-  }
-
-  compile_commands_path =
-      std::filesystem::weakly_canonical(compile_commands_path);
+  const auto build_directory = CanonicalPathOrEmpty(sources.build_directory);
+  const auto compile_commands_path = ChooseCompileCommandsPath(
+      compile_commands_path_, project_root, build_directory);
   if (!std::filesystem::exists(compile_commands_path)) {
     throw std::runtime_error("compile_commands.json not found at " +
                              compile_commands_path.string());
@@ -232,14 +274,7 @@ CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
     if (!build_directory.empty() && IsWithin(unit, build_directory)) {
       continue;
     }
-
-    for (auto &fact : ExtractFactsFromFile(unit)) {
-      const auto fingerprint =
-          fact.name + "|" + fact.kind + "|" + fact.source_location;
-      if (seen_facts.insert(fingerprint).second) {
-        index.facts.push_back(std::move(fact));
-      }
-    }
+    AppendFactsFromUnit(unit, seen_facts, index.facts);
   }
 
   return index;
