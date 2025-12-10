@@ -71,9 +71,11 @@ std::string BuildAnalysisHeaderMarkdown(const AnalysisConfig &config,
   section << "| --- | --- |\n";
   section << "| Generated On | " << timestamp << " |\n";
   section << "| Source | " << config.root_path << " |\n";
-  section << "| Scope Notes | "
-          << (config.scope_notes.empty() ? "None" : config.scope_notes)
-          << " |\n\n";
+  std::string scope_notes = "None";
+  if (!config.scope_notes.empty()) {
+    scope_notes = config.scope_notes;
+  }
+  section << "| Scope Notes | " << scope_notes << " |\n\n";
   return section.str();
 }
 
@@ -109,11 +111,16 @@ std::string BuildRelationshipsMarkdown(const DslExtractionResult &extraction) {
   }
 
   for (const auto &relationship : extraction.relationships) {
+    std::string relationship_notes = "-";
+    if (!relationship.notes.empty()) {
+      relationship_notes = relationship.notes;
+    }
+
     section << "| " << relationship.subject << " | " << relationship.verb
             << " | " << relationship.object << " | "
             << JoinWithBreaks(relationship.evidence) << " | "
-            << (relationship.notes.empty() ? "-" : relationship.notes) << " | "
-            << relationship.usage_count << " |\n";
+            << relationship_notes << " | " << relationship.usage_count
+            << " |\n";
   }
   section << "\n";
   return section.str();
@@ -150,13 +157,20 @@ std::string BuildIncoherenceMarkdown(const CoherenceResult &coherence) {
   }
 
   for (const auto &finding : coherence.findings) {
-    const auto conflict =
-        finding.conflict.empty() ? finding.description : finding.conflict;
-    const auto suggested_canonical = finding.suggested_canonical_form.empty()
-                                         ? "-"
-                                         : finding.suggested_canonical_form;
-    const auto details =
-        finding.description.empty() ? finding.conflict : finding.description;
+    std::string conflict = finding.description;
+    if (!finding.conflict.empty()) {
+      conflict = finding.conflict;
+    }
+
+    std::string suggested_canonical = "-";
+    if (!finding.suggested_canonical_form.empty()) {
+      suggested_canonical = finding.suggested_canonical_form;
+    }
+
+    std::string details = finding.conflict;
+    if (!finding.description.empty()) {
+      details = finding.description;
+    }
 
     section << "| " << finding.term << " | " << conflict << " | "
             << JoinWithBreaks(finding.examples) << " | " << suggested_canonical
@@ -187,10 +201,11 @@ std::string BuildAnalysisHeaderJson(const AnalysisConfig &config,
   json << "\"analysis_header\": {";
   json << "\"generated_on\": \"" << EscapeJsonString(timestamp) << "\",";
   json << "\"source\": \"" << EscapeJsonString(config.root_path) << "\",";
-  json << "\"scope_notes\": \""
-       << EscapeJsonString(config.scope_notes.empty() ? "None"
-                                                      : config.scope_notes)
-       << "\"}";
+  std::string scope_notes = "None";
+  if (!config.scope_notes.empty()) {
+    scope_notes = config.scope_notes;
+  }
+  json << "\"scope_notes\": \"" << EscapeJsonString(scope_notes) << "\"}";
   return json.str();
 }
 

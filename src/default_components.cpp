@@ -20,7 +20,11 @@ DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
   for (const auto &fact : index.facts) {
     DslTerm term;
     term.name = fact.name;
-    term.kind = fact.kind == "type" ? "Entity" : "Action";
+    if (fact.kind == "type") {
+      term.kind = "Entity";
+    } else {
+      term.kind = "Action";
+    }
     term.definition = "Derived from " + fact.name;
     term.evidence.push_back(fact.name + ":1-5");
     term.aliases.push_back(fact.name + "Alias");
