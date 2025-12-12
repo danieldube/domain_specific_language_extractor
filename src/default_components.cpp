@@ -1,4 +1,5 @@
 #include <dsl/default_components.h>
+#include <dsl/heuristic_dsl_extractor.h>
 
 #include <unordered_map>
 
