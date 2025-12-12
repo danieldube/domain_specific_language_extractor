@@ -28,11 +28,6 @@ private:
   std::filesystem::path compile_commands_path_;
 };
 
-class HeuristicDslExtractor : public DslExtractor {
-public:
-  DslExtractionResult Extract(const AstIndex &index) override;
-};
-
 class RuleBasedCoherenceAnalyzer : public CoherenceAnalyzer {
 public:
   CoherenceResult Analyze(const DslExtractionResult &extraction) override;

@@ -6,13 +6,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(
-  dsl_core src/default_components.cpp src/cmake_source_acquirer.cpp
-           src/markdown_reporter.cpp src/compile_commands_ast_indexer.cpp)
+  dsl_core
+  src/default_components.cpp src/heuristic_dsl_extractor.cpp
+  src/cmake_source_acquirer.cpp src/markdown_reporter.cpp
+  src/compile_commands_ast_indexer.cpp)
 
 target_sources(
   dsl_core
-  PRIVATE src/default_components.cpp src/cmake_source_acquirer.cpp
-          src/markdown_reporter.cpp
+  PRIVATE src/default_components.cpp src/heuristic_dsl_extractor.cpp
+          src/cmake_source_acquirer.cpp src/markdown_reporter.cpp
   PUBLIC FILE_SET
          HEADERS
          TYPE
@@ -21,6 +23,7 @@ target_sources(
          ${CMAKE_CURRENT_SOURCE_DIR}/include
          FILES
          include/dsl/default_components.h
+         include/dsl/heuristic_dsl_extractor.h
          include/dsl/interfaces.h
          include/dsl/models.h)
 

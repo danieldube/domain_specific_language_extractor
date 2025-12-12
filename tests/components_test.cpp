@@ -1,7 +1,9 @@
 #include <dsl/default_components.h>
+#include <dsl/heuristic_dsl_extractor.h>
 #include <dsl/interfaces.h>
 #include <dsl/models.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 
@@ -15,17 +17,49 @@ namespace {
 
 TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
   AstIndex index;
-  index.facts = {{"alpha", "function"}, {"beta", "function"}};
+  index.facts = {
+      {"ProcessData", "function|int ProcessData()", "file.cpp:3"},
+      {"ProcessData", "call:RenderFrame|Transforms frame", "file.cpp:10"},
+      {"RenderFrame", "function|void RenderFrame()", "file.cpp:20"},
+      {"RenderFrame", "type_usage:FrameConfig|uses configuration",
+       "file.cpp:25"},
+      {"FrameConfig", "type|struct FrameConfig", "types.h:5"},
+      {"FRAMECONFIG", "type|documented FrameConfig", "types.h:6"},
+  };
   HeuristicDslExtractor extractor;
 
   const auto extraction = extractor.Extract(index);
 
-  ASSERT_EQ(extraction.terms.size(), 2u);
-  EXPECT_EQ(extraction.terms.front().definition, "Derived from alpha");
-  EXPECT_FALSE(extraction.terms.front().evidence.empty());
-  ASSERT_EQ(extraction.relationships.size(), 1u);
-  EXPECT_EQ(extraction.relationships.front().subject, "alpha");
-  EXPECT_EQ(extraction.relationships.front().object, "beta");
+  ASSERT_EQ(extraction.terms.size(), 3u);
+
+  const auto &process_term = *std::find_if(
+      extraction.terms.begin(), extraction.terms.end(),
+      [](const auto &term) { return term.name == "processdata"; });
+  EXPECT_THAT(process_term.definition,
+              ::testing::HasSubstr("int ProcessData()"));
+  EXPECT_EQ(process_term.kind, "Action");
+  EXPECT_GE(process_term.usage_count, 2);
+  EXPECT_FALSE(process_term.evidence.empty());
+
+  const auto &config_term = *std::find_if(
+      extraction.terms.begin(), extraction.terms.end(),
+      [](const auto &term) { return term.name == "frameconfig"; });
+  EXPECT_THAT(config_term.aliases,
+              ::testing::UnorderedElementsAre("FrameConfig", "FRAMECONFIG"));
+  EXPECT_EQ(config_term.kind, "Entity");
+
+  ASSERT_EQ(extraction.relationships.size(), 2u);
+  EXPECT_THAT(
+      extraction.relationships,
+      ::testing::UnorderedElementsAre(
+          ::testing::AllOf(
+              ::testing::Field(&DslRelationship::subject, "processdata"),
+              ::testing::Field(&DslRelationship::verb, "calls"),
+              ::testing::Field(&DslRelationship::object, "renderframe")),
+          ::testing::AllOf(
+              ::testing::Field(&DslRelationship::subject, "renderframe"),
+              ::testing::Field(&DslRelationship::verb, "uses-type"),
+              ::testing::Field(&DslRelationship::object, "frameconfig"))));
   EXPECT_FALSE(extraction.workflows.empty());
   EXPECT_FALSE(extraction.extraction_notes.empty());
 }

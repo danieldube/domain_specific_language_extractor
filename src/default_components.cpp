@@ -1,84 +1,12 @@
 #include <dsl/default_components.h>
+#include <dsl/heuristic_dsl_extractor.h>
 
-#include <algorithm>
-#include <iterator>
 #include <unordered_map>
 
+#include <memory>
+#include <utility>
+
 namespace {
-
-dsl::DslTerm BuildTerm(const dsl::AstFact &fact) {
-  dsl::DslTerm term{};
-  term.name = fact.name;
-  term.kind = fact.kind == "type" ? "Entity" : "Action";
-  term.definition = "Derived from " + fact.name;
-  term.evidence.push_back(fact.source_location.empty() ? fact.name + ":1-5"
-                                                       : fact.source_location);
-  term.aliases.push_back(fact.name + "Alias");
-  term.usage_count = 1;
-  return term;
-}
-
-std::vector<dsl::DslTerm> BuildTerms(const dsl::AstIndex &index) {
-  std::vector<dsl::DslTerm> terms;
-  terms.reserve(index.facts.size());
-  std::transform(index.facts.begin(), index.facts.end(),
-                 std::back_inserter(terms), BuildTerm);
-  return terms;
-}
-
-dsl::DslRelationship BuildRelationship(const dsl::DslTerm &previous,
-                                       const dsl::DslTerm &current) {
-  dsl::DslRelationship relationship{};
-  relationship.subject = previous.name;
-  relationship.verb = "precedes";
-  relationship.object = current.name;
-  relationship.evidence.push_back("call_site:10-12");
-  relationship.notes = "Sequential operation";
-  relationship.usage_count = 1;
-  return relationship;
-}
-
-std::vector<dsl::DslRelationship>
-BuildRelationships(const std::vector<dsl::DslTerm> &terms) {
-  std::vector<dsl::DslRelationship> relationships;
-  for (std::size_t i = 1; i < terms.size(); ++i) {
-    relationships.push_back(BuildRelationship(terms[i - 1], terms[i]));
-  }
-  return relationships;
-}
-
-dsl::DslExtractionResult::Workflow
-BuildWorkflow(const std::vector<dsl::DslRelationship> &relationships) {
-  dsl::DslExtractionResult::Workflow workflow{};
-  workflow.name = "Heuristic workflow";
-  for (const auto &relationship : relationships) {
-    workflow.steps.push_back(relationship.subject + " -> " +
-                             relationship.object);
-  }
-  return workflow;
-}
-
-std::vector<dsl::DslExtractionResult::Workflow>
-BuildWorkflows(const std::vector<dsl::DslRelationship> &relationships) {
-  if (relationships.empty()) {
-    return {};
-  }
-  return {BuildWorkflow(relationships)};
-}
-
-void AppendExtractionNotes(dsl::DslExtractionResult &result) {
-  result.extraction_notes.push_back(
-      "Heuristic extraction generated placeholder evidence and aliases.");
-}
-
-std::unordered_map<std::string, int>
-CountTermOccurrences(const std::vector<dsl::DslTerm> &terms) {
-  std::unordered_map<std::string, int> occurrence_counts;
-  for (const auto &term : terms) {
-    ++occurrence_counts[term.name];
-  }
-  return occurrence_counts;
-}
 
 void AddDuplicateFindings(const std::unordered_map<std::string, int> &counts,
                           dsl::CoherenceResult &result) {
@@ -121,18 +49,18 @@ EnsureComponent(std::unique_ptr<Interface> component) {
   return std::make_unique<Implementation>();
 }
 
+std::unordered_map<std::string, int>
+CountTermOccurrences(const std::vector<dsl::DslTerm> &terms) {
+  std::unordered_map<std::string, int> occurrence_counts;
+  for (const auto &term : terms) {
+    ++occurrence_counts[term.name];
+  }
+  return occurrence_counts;
+}
+
 } // namespace
 
 namespace dsl {
-
-DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
-  DslExtractionResult result{};
-  result.terms = BuildTerms(index);
-  result.relationships = BuildRelationships(result.terms);
-  result.workflows = BuildWorkflows(result.relationships);
-  AppendExtractionNotes(result);
-  return result;
-}
 
 CoherenceResult
 RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
