@@ -302,6 +302,10 @@ pre-commit install
 pre-commit run --all-files
 ```
 
+### 17.4 Commit checklist
+
+Every commit must be cut only after local checks are green. Run the full unit test suite and `pre-commit run --all-files`, and fix all findings before committing.
+
 ---
 
 ## 18. Quickstart
