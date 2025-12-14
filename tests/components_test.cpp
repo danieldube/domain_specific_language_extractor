@@ -163,14 +163,14 @@ TEST(RuleBasedCoherenceAnalyzerTest, DetectsAmbiguousAliases) {
 
   const auto result = analyzer.Analyze(extraction);
 
-  EXPECT_THAT(
-      result.findings,
-      ::testing::Contains(::testing::AllOf(
-          ::testing::Field(&Finding::term, "sharedalias"),
-          ::testing::Field(&Finding::conflict,
-                           ::testing::HasSubstr("Alias reused")),
-          ::testing::Field(&Finding::examples,
-                           ::testing::Contains(::testing::HasSubstr("alpha"))))));
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&Finding::term, "sharedalias"),
+                  ::testing::Field(&Finding::conflict,
+                                   ::testing::HasSubstr("Alias reused")),
+                  ::testing::Field(
+                      &Finding::examples,
+                      ::testing::Contains(::testing::HasSubstr("alpha"))))));
 }
 
 TEST(RuleBasedCoherenceAnalyzerTest, DetectsConflictingVerbsBetweenSamePair) {
@@ -192,15 +192,14 @@ TEST(RuleBasedCoherenceAnalyzerTest, DetectsConflictingVerbsBetweenSamePair) {
 
   const auto result = analyzer.Analyze(extraction);
 
-  EXPECT_THAT(
-      result.findings,
-      ::testing::Contains(::testing::AllOf(
-          ::testing::Field(&Finding::term, "alpha->beta"),
-          ::testing::Field(&Finding::conflict,
-                           ::testing::HasSubstr("Conflicting verbs")),
-          ::testing::Field(
-              &Finding::examples,
-              ::testing::Contains(::testing::HasSubstr("alpha calls beta"))))));
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&Finding::term, "alpha->beta"),
+                  ::testing::Field(&Finding::conflict,
+                                   ::testing::HasSubstr("Conflicting verbs")),
+                  ::testing::Field(&Finding::examples,
+                                   ::testing::Contains(::testing::HasSubstr(
+                                       "alpha calls beta"))))));
 }
 
 TEST(RuleBasedCoherenceAnalyzerTest, FlagsHighUsageTermsWithoutRelationships) {
@@ -229,7 +228,7 @@ TEST(RuleBasedCoherenceAnalyzerTest, FlagsHighUsageTermsWithoutRelationships) {
                   ::testing::Field(&Finding::conflict,
                                    ::testing::HasSubstr("High-usage term")),
                   ::testing::Field(&Finding::examples,
-                                   ::testing::Contains("busy evidence"))))));
+                                   ::testing::Contains("busy evidence")))));
 }
 
 TEST(RuleBasedCoherenceAnalyzerTest,
@@ -251,14 +250,14 @@ TEST(RuleBasedCoherenceAnalyzerTest,
 
   const auto result = analyzer.Analyze(extraction);
 
-  EXPECT_THAT(
-      result.findings,
-      ::testing::Contains(::testing::AllOf(
-          ::testing::Field(&Finding::term, "paymentservice"),
-          ::testing::Field(&Finding::conflict,
-                           ::testing::HasSubstr("canonicalization")),
-          ::testing::Field(&Finding::examples,
-                           ::testing::Contains(::testing::HasSubstr("PaymentService"))))));
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&Finding::term, "paymentservice"),
+                  ::testing::Field(&Finding::conflict,
+                                   ::testing::HasSubstr("canonicalization")),
+                  ::testing::Field(&Finding::examples,
+                                   ::testing::Contains(::testing::HasSubstr(
+                                       "PaymentService"))))));
 }
 
 TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {

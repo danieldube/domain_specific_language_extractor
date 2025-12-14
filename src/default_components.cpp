@@ -36,7 +36,7 @@ void AddRelationshipMissingFinding(const dsl::DslExtractionResult &extraction,
   dsl::Finding finding{};
   finding.term = term.name;
   finding.conflict = "No relationships detected; DSL may be incomplete.";
-  finding.examples.push_back("Relationships missing for term");
+  finding.examples.emplace_back("Relationships missing for term");
   finding.suggested_canonical_form = term.name;
   finding.description = finding.conflict;
   result.findings.push_back(finding);
@@ -71,7 +71,8 @@ std::string CanonicalizeName(std::string name) {
 
 void AddAmbiguousAliasFindings(const std::vector<dsl::DslTerm> &terms,
                                dsl::CoherenceResult &result) {
-  std::unordered_map<std::string, std::unordered_set<std::string>> alias_to_terms;
+  std::unordered_map<std::string, std::unordered_set<std::string>>
+      alias_to_terms;
   for (const auto &term : terms) {
     for (const auto &alias : term.aliases) {
       alias_to_terms[CanonicalizeName(alias)].insert(term.name);
@@ -109,11 +110,11 @@ void AddConflictingVerbFindings(
   for (const auto &relationship : relationships) {
     const auto key = relationship.subject + "->" + relationship.object;
     auto &entry = pair_to_relationships[key];
-    const auto example = relationship.evidence.empty()
-                             ? relationship.verb + ": " + relationship.subject +
-                                   " " + relationship.object
-                             : relationship.verb + ": " +
-                                   relationship.evidence.front();
+    const auto example =
+        relationship.evidence.empty()
+            ? relationship.verb + ": " + relationship.subject + " " +
+                  relationship.object
+            : relationship.verb + ": " + relationship.evidence.front();
     entry.verbs_to_examples[relationship.verb].push_back(example);
   }
 
@@ -127,13 +128,17 @@ void AddConflictingVerbFindings(
     const auto object = key.substr(separator + 2);
 
     dsl::Finding finding{};
-    finding.term = subject + "->" + object;
+    finding.term = subject;
+    finding.term.append("->");
+    finding.term.append(object);
     finding.conflict =
         "Conflicting verbs found between the same subject and object.";
     for (const auto &[verb, examples] : evidence.verbs_to_examples) {
       finding.examples.push_back(examples.front());
     }
-    finding.suggested_canonical_form = subject + " " + object;
+    finding.suggested_canonical_form = subject;
+    finding.suggested_canonical_form.append(" ");
+    finding.suggested_canonical_form.append(object);
     finding.description = finding.conflict;
     result.findings.push_back(finding);
   }
@@ -151,7 +156,8 @@ void AddHighUsageMissingRelationshipFindings(
     if (term.usage_count < 3) {
       continue;
     }
-    if (relationship_participants.contains(term.name)) {
+    if (relationship_participants.find(term.name) !=
+        relationship_participants.end()) {
       continue;
     }
 
@@ -162,7 +168,8 @@ void AddHighUsageMissingRelationshipFindings(
     if (!term.evidence.empty()) {
       finding.examples.push_back(term.evidence.front());
     } else {
-      finding.examples.push_back("usage count: " + std::to_string(term.usage_count));
+      finding.examples.push_back("usage count: " +
+                                 std::to_string(term.usage_count));
     }
     finding.suggested_canonical_form = term.name;
     finding.description = finding.conflict;
@@ -172,7 +179,8 @@ void AddHighUsageMissingRelationshipFindings(
 
 void AddCanonicalizationInconsistencyFindings(
     const dsl::DslExtractionResult &extraction, dsl::CoherenceResult &result) {
-  std::unordered_map<std::string, std::unordered_set<std::string>> canonical_to_names;
+  std::unordered_map<std::string, std::unordered_set<std::string>>
+      canonical_to_names;
   for (const auto &term : extraction.terms) {
     canonical_to_names[CanonicalizeName(term.name)].insert(term.name);
   }
