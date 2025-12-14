@@ -40,6 +40,10 @@ std::string LoadFile(const std::filesystem::path &path) {
 
 std::filesystem::path ExecutableUnderTest() {
   const auto current = std::filesystem::current_path();
+  const auto preferred = current / "dsl-extract";
+  if (std::filesystem::exists(preferred)) {
+    return preferred;
+  }
   return current / "dsl_analyzer";
 }
 
@@ -58,10 +62,43 @@ TEST(CliIntegrationTest, GeneratesReportsForSampleProject) {
   ASSERT_TRUE(std::filesystem::exists(cli))
       << "Expected CLI executable at " << cli;
 
+  const auto output_directory = project.root() / "artifacts";
   const std::string command =
-      cli.string() + " --root " + project.root().string() + " --build " +
-      build_directory.string() +
-      " --format markdown,json --scope-notes integration";
+      cli.string() + " analyze --root " + project.root().string() +
+      " --build " + build_directory.string() +
+      " --format markdown,json --scope-notes integration --out " +
+      output_directory.string();
+
+  ASSERT_EQ(std::system(command.c_str()), 0);
+
+  const auto markdown_report = output_directory / "dsl_report.md";
+  const auto json_report = output_directory / "dsl_report.json";
+
+  ASSERT_TRUE(std::filesystem::exists(markdown_report));
+  ASSERT_TRUE(std::filesystem::exists(json_report));
+
+  EXPECT_THAT(LoadFile(markdown_report).size(), Gt<std::size_t>(0));
+  EXPECT_THAT(LoadFile(json_report).size(), Gt<std::size_t>(0));
+}
+
+TEST(CliIntegrationTest, DefaultsMirrorLegacyBehavior) {
+  test::TemporaryProject project;
+  const auto cmake_lists = project.AddFile(
+      "CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\nproject(sample "
+                        "CXX)\nadd_library(sample src/example.cpp)\n");
+  (void)cmake_lists;
+  const auto source_path =
+      project.AddFile("src/example.cpp", "int Example() { return 42; }\n");
+  const auto build_directory = project.root() / "build";
+  WriteCompileCommands(build_directory, source_path);
+
+  const auto cli = ExecutableUnderTest();
+  ASSERT_TRUE(std::filesystem::exists(cli))
+      << "Expected CLI executable at " << cli;
+
+  const std::string command = cli.string() + " --root " +
+                              project.root().string() + " --build " +
+                              build_directory.string();
 
   ASSERT_EQ(std::system(command.c_str()), 0);
 
@@ -69,10 +106,8 @@ TEST(CliIntegrationTest, GeneratesReportsForSampleProject) {
   const auto json_report = project.root() / "dsl_report.json";
 
   ASSERT_TRUE(std::filesystem::exists(markdown_report));
-  ASSERT_TRUE(std::filesystem::exists(json_report));
-
+  EXPECT_FALSE(std::filesystem::exists(json_report));
   EXPECT_THAT(LoadFile(markdown_report).size(), Gt<std::size_t>(0));
-  EXPECT_THAT(LoadFile(json_report).size(), Gt<std::size_t>(0));
 }
 
 } // namespace

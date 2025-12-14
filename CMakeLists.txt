@@ -24,6 +24,13 @@ add_library(
   src/compile_commands_ast_indexer.cpp)
 
 add_executable(dsl_analyzer src/dsl_analyzer.cpp)
+set_target_properties(dsl_analyzer PROPERTIES OUTPUT_NAME "dsl-extract")
+add_custom_command(
+  TARGET dsl_analyzer
+  POST_BUILD
+  COMMAND
+    ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:dsl_analyzer>
+    $<TARGET_FILE_DIR:dsl_analyzer>/dsl_analyzer)
 target_link_libraries(dsl_analyzer PRIVATE dsl_core)
 install(TARGETS dsl_analyzer RUNTIME DESTINATION bin)
 
