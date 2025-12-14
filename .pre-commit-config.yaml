@@ -35,9 +35,8 @@ repos:
     hooks:
       - id: create-compile-commands
         name: create-compile-commands
-        entry: cmake
+        entry: python scripts/run_cmake_precommit.py
         language: system
-        args: [ -Bbuild, -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ]
         always_run: true
         require_serial: true
         pass_filenames: false
