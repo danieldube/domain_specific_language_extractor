@@ -21,6 +21,10 @@ struct AstFact {
   std::string name;
   std::string kind;
   std::string source_location;
+  std::string signature;
+  std::string descriptor;
+  std::string target;
+  std::string range;
 };
 
 struct AstIndex {

@@ -78,10 +78,16 @@ void ExtractRelationshipTarget(ParsedKind &parsed) {
   parsed.base_kind = parsed.base_kind.substr(0, relationship_separator);
 }
 
-ParsedKind ParseKind(std::string kind) {
-  ParsedKind parsed{std::move(kind), std::nullopt, std::nullopt};
+ParsedKind ParseKind(const dsl::AstFact &fact) {
+  ParsedKind parsed{fact.kind, std::nullopt, std::nullopt};
   ExtractDescriptor(parsed);
   ExtractRelationshipTarget(parsed);
+  if (!fact.descriptor.empty()) {
+    parsed.descriptor = fact.descriptor;
+  }
+  if (!fact.target.empty()) {
+    parsed.relationship_target = fact.target;
+  }
   return parsed;
 }
 
@@ -200,12 +206,16 @@ void TrackRelationship(const dsl::AstFact &fact, const ParsedKind &parsed,
 
 void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
                         AliasMap &aliases, RelationshipMap &relationships) {
-  const auto parsed = ParseKind(fact.kind);
+  const auto parsed = ParseKind(fact);
   const auto canonical_name = CanonicalizeName(fact.name);
   auto &term = terms[canonical_name];
   term.name = canonical_name;
   EnsureKindInitialized(parsed, term);
-  MergeDefinition(parsed.descriptor, term);
+  auto descriptor = parsed.descriptor;
+  if (!descriptor.has_value() && !fact.signature.empty()) {
+    descriptor = fact.signature;
+  }
+  MergeDefinition(descriptor, term);
   AddEvidence(fact.source_location, term.evidence);
   ++term.usage_count;
   AddAlias(fact, canonical_name, aliases, term);

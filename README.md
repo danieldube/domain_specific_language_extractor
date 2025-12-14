@@ -19,45 +19,59 @@ quality characteristics remain visible for every task.
 
 ## Pre-commit setup
 Pre-commit checks are mandatory. Install the hooks and run them before every
-commit.
+commit. Use the platform-specific dependency script before installing the
+hooks so the cmake step can locate clang/llvm tooling and libclang headers.
 
-### Linux (Ubuntu)
-1. Create and activate a virtual environment:
+### Linux and macOS
+1. Install system dependencies (clang/clang-tidy/clang-format, libclang
+   headers, cmake, and ninja):
+
+   ```bash
+   ./scripts/install_dev_dependencies.sh
+   ```
+
+2. Create and activate a virtual environment:
 
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
    ```
 
-2. Install dependencies and set up the git hook:
+3. Install Python tooling and set up the git hook:
 
    ```bash
    pip install --upgrade pip pre-commit
    pre-commit install
    ```
 
-3. Run the full suite on all files:
+4. Run the full suite on all files:
 
    ```bash
    pre-commit run --all-files
    ```
 
 ### Windows (PowerShell)
-1. Create and activate a virtual environment:
+1. Install system dependencies:
+
+   ```powershell
+   ./scripts/install_dev_dependencies.ps1
+   ```
+
+2. Create and activate a virtual environment:
 
    ```powershell
    py -3 -m venv .venv
    .\.venv\Scripts\Activate.ps1
    ```
 
-2. Install dependencies and set up the git hook:
+3. Install Python tooling and set up the git hook:
 
    ```powershell
    pip install --upgrade pip pre-commit
    pre-commit install
    ```
 
-3. Run the full suite on all files:
+4. Run the full suite on all files:
 
    ```powershell
    pre-commit run --all-files
