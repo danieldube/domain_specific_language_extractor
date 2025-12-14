@@ -12,6 +12,22 @@ captures canonical terms, relationships between them, common workflows, and
 incoherence warnings so developers can quickly understand and refine the
 domain language used across the codebase.
 
+## CLI usage
+The CLI entrypoint is `dsl-extract`. The primary command is `analyze`, and it
+defaults to that behavior when no subcommand is provided:
+
+```
+dsl-extract analyze --root <path> [--build <dir>] [--format markdown,json] \
+  [--out <dir>] [--scope-notes <text>]
+```
+
+- `--out` directs report outputs to a specific directory; omit it to keep the
+  legacy behavior of writing under the analysis root.
+- `--format` accepts a comma-separated list (supported: `markdown`, `json`),
+  defaulting to Markdown only when unspecified.
+- Placeholder commands (`report`, `cache clean`) are reserved for future
+  extensions and currently emit guidance via the CLI help text.
+
 ## Architecture Documentation
 The Arc42 design document lives in [`docs/arc42.md`](docs/arc42.md). Consult it
 before making significant changes so the architecture goals, scope, and

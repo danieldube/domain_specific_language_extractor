@@ -13,17 +13,28 @@
 
 namespace {
 
-struct CliOptions {
+struct AnalyzeOptions {
   std::filesystem::path root;
   std::filesystem::path build_directory{"build"};
+  std::filesystem::path output_directory;
   std::vector<std::string> formats;
   std::string scope_notes;
   bool show_help = false;
 };
 
-void PrintUsage() {
+void PrintGlobalUsage() {
   std::cout
-      << "Usage: dsl_analyzer --root <path> [options]\n"
+      << "Usage: dsl-extract <command> [options]\n\n"
+      << "Commands:\n"
+      << "  analyze   Run DSL analysis (default if no command is given).\n"
+      << "  report    (placeholder) Render reports from cached analysis.\n"
+      << "  cache     (placeholder) Manage CLI caches (subcommands: clean).\n\n"
+      << "Run 'dsl-extract analyze --help' for analysis options.\n";
+}
+
+void PrintAnalyzeUsage() {
+  std::cout
+      << "Usage: dsl-extract analyze --root <path> [options]\n"
       << "Options:\n"
       << "  --root <path>         Root directory of the CMake project\n"
       << "  --build <path>        Build directory containing "
@@ -31,6 +42,8 @@ void PrintUsage() {
       << "                        (default: build)\n"
       << "  --format <list>       Comma-separated list of output formats\n"
       << "                        (supported: markdown,json)\n"
+      << "  --out <path>          Directory for report outputs\n"
+      << "                        (default: analysis root)\n"
       << "  --scope-notes <text>  Scope notes to embed in the report header\n"
       << "  --help                Show this message\n";
 }
@@ -66,41 +79,49 @@ void AppendFormats(const std::string &raw_formats,
   }
 }
 
-CliOptions ParseArguments(int argc, char **argv) {
-  CliOptions options;
+AnalyzeOptions
+ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
+  AnalyzeOptions options;
 
-  for (int i = 1; i < argc; ++i) {
-    const std::string argument(argv[i]);
-    if (argument == "--help") {
+  for (std::size_t i = 0; i < arguments.size(); ++i) {
+    const std::string &argument = arguments[i];
+    if (argument == "--help" || argument == "-h") {
       options.show_help = true;
       return options;
     }
     if (argument == "--root") {
-      if (++i >= argc) {
+      if (++i >= arguments.size()) {
         throw std::invalid_argument("--root requires a value");
       }
-      options.root = argv[i];
+      options.root = arguments[i];
       continue;
     }
     if (argument == "--build") {
-      if (++i >= argc) {
+      if (++i >= arguments.size()) {
         throw std::invalid_argument("--build requires a value");
       }
-      options.build_directory = argv[i];
+      options.build_directory = arguments[i];
       continue;
     }
     if (argument == "--format") {
-      if (++i >= argc) {
+      if (++i >= arguments.size()) {
         throw std::invalid_argument("--format requires a value");
       }
-      AppendFormats(argv[i], options.formats);
+      AppendFormats(arguments[i], options.formats);
+      continue;
+    }
+    if (argument == "--out") {
+      if (++i >= arguments.size()) {
+        throw std::invalid_argument("--out requires a value");
+      }
+      options.output_directory = arguments[i];
       continue;
     }
     if (argument == "--scope-notes") {
-      if (++i >= argc) {
+      if (++i >= arguments.size()) {
         throw std::invalid_argument("--scope-notes requires a value");
       }
-      options.scope_notes = argv[i];
+      options.scope_notes = arguments[i];
       continue;
     }
     throw std::invalid_argument("Unknown argument: " + argument);
@@ -127,6 +148,7 @@ void WriteFileIfContent(const std::filesystem::path &path,
 
 void WriteReports(const std::filesystem::path &root,
                   const dsl::Report &report) {
+  std::filesystem::create_directories(root);
   WriteFileIfContent(root / "dsl_report.md", report.markdown);
   WriteFileIfContent(root / "dsl_report.json", report.json);
 }
@@ -135,29 +157,66 @@ void WriteReports(const std::filesystem::path &root,
 
 int main(int argc, char **argv) {
   try {
-    const auto options = ParseArguments(argc, argv);
-    if (options.show_help) {
-      PrintUsage();
+    const std::vector<std::string> arguments(argv + 1, argv + argc);
+
+    if (!arguments.empty() &&
+        (arguments.front() == "--help" || arguments.front() == "-h")) {
+      PrintGlobalUsage();
       return 0;
     }
 
-    dsl::AnalyzerPipelineBuilder builder =
-        dsl::AnalyzerPipelineBuilder::WithDefaults();
-    builder.WithSourceAcquirer(
-        std::make_unique<dsl::CMakeSourceAcquirer>(options.build_directory));
+    std::string command = "analyze";
+    std::size_t first_argument_index = 0;
+    if (!arguments.empty() && arguments.front().rfind('-', 0) != 0) {
+      command = arguments.front();
+      first_argument_index = 1;
+    }
 
-    auto pipeline = builder.Build();
-    dsl::AnalysisConfig config;
-    config.root_path = options.root.string();
-    config.formats = options.formats;
-    config.scope_notes = options.scope_notes;
+    if (command == "analyze") {
+      const std::vector<std::string> analyze_arguments(
+          arguments.begin() + static_cast<std::ptrdiff_t>(first_argument_index),
+          arguments.end());
+      const auto options = ParseAnalyzeArguments(analyze_arguments);
+      if (options.show_help) {
+        PrintAnalyzeUsage();
+        return 0;
+      }
 
-    const auto result = pipeline.Run(config);
-    WriteReports(options.root, result.report);
-    return 0;
+      dsl::AnalyzerPipelineBuilder builder =
+          dsl::AnalyzerPipelineBuilder::WithDefaults();
+      builder.WithSourceAcquirer(
+          std::make_unique<dsl::CMakeSourceAcquirer>(options.build_directory));
+
+      auto pipeline = builder.Build();
+      dsl::AnalysisConfig config;
+      config.root_path = options.root.string();
+      config.formats = options.formats;
+      config.scope_notes = options.scope_notes;
+
+      const auto result = pipeline.Run(config);
+      const auto output_root = options.output_directory.empty()
+                                   ? options.root
+                                   : options.output_directory;
+      WriteReports(output_root, result.report);
+      return 0;
+    }
+
+    if (command == "report") {
+      std::cout << "Report command is not implemented yet. "
+                   "Run 'dsl-extract analyze' to generate reports.\n";
+      return 1;
+    }
+
+    if (command == "cache") {
+      std::cout << "Cache management is not implemented yet. Use "
+                   "'dsl-extract analyze' to regenerate outputs.\n";
+      return 1;
+    }
+
+    throw std::invalid_argument("Unknown command: " + command);
   } catch (const std::exception &ex) {
     std::cerr << "Error: " << ex.what() << "\n";
-    PrintUsage();
+    PrintGlobalUsage();
     return 1;
   }
 }
