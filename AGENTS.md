@@ -220,6 +220,9 @@ endif()
 Configure and build:
 
 ```bash
+# Install toolchain dependencies before configuring so CMake can locate clang,
+# clang-tidy, and libclang headers. Use the platform bootstrap script in
+# `scripts/install_dev_dependencies.*`.
 # From repo root
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j

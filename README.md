@@ -36,10 +36,19 @@ The Arc42 design document lives in [`docs/arc42.md`](docs/arc42.md). Consult it
 before making significant changes so the architecture goals, scope, and
 quality characteristics remain visible for every task.
 
-## Pre-commit setup
-Pre-commit checks are mandatory. Install the hooks and run them before every
-commit. Use the platform-specific dependency script before installing the
-hooks so the cmake step can locate clang/llvm tooling and libclang headers.
+## Pre-commit and test gate (mandatory)
+All commits must pass the local checks before they land in the repository. The
+expected flow is:
+
+1. Install toolchain dependencies so the CMake configure step can find
+   `libclang` and related LLVM tools.
+2. Run the pre-commit hooks on the full tree.
+3. Build and run the unit tests.
+
+Skipping any of these steps causes the most common failures on CI (for example,
+`cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug` will fail without the
+`libclang-dev` headers installed). Use the platform-specific dependency script
+before installing the hooks so the configure step always succeeds.
 
 ### Linux and macOS
 1. Install system dependencies (clang/clang-tidy/clang-format, libclang
@@ -69,6 +78,14 @@ hooks so the cmake step can locate clang/llvm tooling and libclang headers.
    pre-commit run --all-files
    ```
 
+5. Build and execute the test suite:
+
+   ```bash
+   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+   cmake --build build -j
+   ctest --test-dir build --output-on-failure -j
+   ```
+
 ### Windows (PowerShell)
 1. Install system dependencies:
 
@@ -94,4 +111,12 @@ hooks so the cmake step can locate clang/llvm tooling and libclang headers.
 
    ```powershell
    pre-commit run --all-files
+   ```
+
+5. Build and execute the test suite:
+
+   ```powershell
+   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+   cmake --build build -j
+   ctest --test-dir build --output-on-failure -j
    ```
