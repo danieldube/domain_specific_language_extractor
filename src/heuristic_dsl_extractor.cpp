@@ -386,6 +386,7 @@ DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
   result.terms = BuildTerms(index, relationships);
   result.relationships = BuildRelationships(std::move(relationships));
   result.workflows = BuildWorkflows(result.relationships);
+  result.facts = index.facts;
   AppendExtractionNotes(result);
   return result;
 }
