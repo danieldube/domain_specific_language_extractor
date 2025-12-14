@@ -18,37 +18,82 @@ namespace {
 TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
   AstIndex index;
   index.facts = {
-      {"ProcessData", "function|int ProcessData()", "file.cpp:3"},
-      {"ProcessData", "call:RenderFrame|Transforms frame", "file.cpp:10"},
-      {"RenderFrame", "function|void RenderFrame()", "file.cpp:20"},
-      {"RenderFrame", "type_usage:FrameConfig|uses configuration",
-       "file.cpp:25"},
-      {"FrameConfig", "type|struct FrameConfig", "types.h:5"},
-      {"FRAMECONFIG", "type|documented FrameConfig", "types.h:6"},
+      {"ProcessData",
+       "function",
+       "file.cpp:3",
+       "int ProcessData()",
+       "Processes input",
+       "",
+       "3:1-3:10"},
+      {"ProcessData", "call", "file.cpp:10", "", "Transforms frame",
+       "RenderFrame", "10:3-10:20"},
+      {"RenderFrame",
+       "function",
+       "file.cpp:20",
+       "void RenderFrame(FrameConfig cfg)",
+       "Renders frame",
+       "",
+       "20:1-20:35"},
+      {"RenderFrame", "type_usage", "file.cpp:25", "", "uses configuration",
+       "FrameConfig", "25:5-25:16"},
+      {"FrameConfig",
+       "type",
+       "types.h:5",
+       "struct FrameConfig",
+       "frame settings",
+       "",
+       "5:1-8:1"},
+      {"CfgAlias", "reference", "types.h:12", "", "", "FrameConfig",
+       "12:3-12:12"},
+      {"RenderAlias", "alias", "file.cpp:40", "", "", "RenderFrame",
+       "40:2-40:12"},
+      {"RenderFrame", "owns", "file.cpp:45", "", "owns buffer",
+       "FrameBuffer", "45:1-45:12"},
+      {"FrameBuffer", "type", "types.h:30", "class FrameBuffer",
+       "holds pixels", "", "30:1-30:20"},
   };
   HeuristicDslExtractor extractor;
 
   const auto extraction = extractor.Extract(index);
 
-  ASSERT_EQ(extraction.terms.size(), 3u);
+  ASSERT_EQ(extraction.terms.size(), 4u);
 
   const auto &process_term = *std::find_if(
       extraction.terms.begin(), extraction.terms.end(),
       [](const auto &term) { return term.name == "processdata"; });
   EXPECT_THAT(process_term.definition,
               ::testing::HasSubstr("int ProcessData()"));
+  EXPECT_THAT(process_term.definition,
+              ::testing::HasSubstr("Processes input"));
   EXPECT_EQ(process_term.kind, "Action");
   EXPECT_GE(process_term.usage_count, 2);
-  EXPECT_FALSE(process_term.evidence.empty());
+  EXPECT_THAT(process_term.evidence,
+              ::testing::Contains("file.cpp:3@3:1-3:10"));
 
   const auto &config_term = *std::find_if(
       extraction.terms.begin(), extraction.terms.end(),
       [](const auto &term) { return term.name == "frameconfig"; });
   EXPECT_THAT(config_term.aliases,
-              ::testing::UnorderedElementsAre("FrameConfig", "FRAMECONFIG"));
+              ::testing::UnorderedElementsAre("FrameConfig", "CfgAlias"));
   EXPECT_EQ(config_term.kind, "Entity");
+  EXPECT_EQ(config_term.usage_count, 3);
 
-  ASSERT_EQ(extraction.relationships.size(), 2u);
+  const auto &render_term = *std::find_if(
+      extraction.terms.begin(), extraction.terms.end(),
+      [](const auto &term) { return term.name == "renderframe"; });
+  EXPECT_THAT(render_term.aliases,
+              ::testing::UnorderedElementsAre("RenderFrame", "RenderAlias"));
+  EXPECT_THAT(render_term.definition,
+              ::testing::HasSubstr("Renders frame"));
+  EXPECT_EQ(render_term.usage_count, 5);
+
+  const auto &buffer_term = *std::find_if(
+      extraction.terms.begin(), extraction.terms.end(),
+      [](const auto &term) { return term.name == "framebuffer"; });
+  EXPECT_EQ(buffer_term.kind, "Entity");
+  EXPECT_EQ(buffer_term.usage_count, 2);
+
+  ASSERT_EQ(extraction.relationships.size(), 3u);
   EXPECT_THAT(
       extraction.relationships,
       ::testing::UnorderedElementsAre(
@@ -59,8 +104,18 @@ TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
           ::testing::AllOf(
               ::testing::Field(&DslRelationship::subject, "renderframe"),
               ::testing::Field(&DslRelationship::verb, "uses-type"),
-              ::testing::Field(&DslRelationship::object, "frameconfig"))));
-  EXPECT_FALSE(extraction.workflows.empty());
+              ::testing::Field(&DslRelationship::object, "frameconfig")),
+          ::testing::AllOf(
+              ::testing::Field(&DslRelationship::subject, "renderframe"),
+              ::testing::Field(&DslRelationship::verb, "owns"),
+              ::testing::Field(&DslRelationship::object, "framebuffer"))));
+  ASSERT_FALSE(extraction.workflows.empty());
+  ASSERT_FALSE(extraction.workflows.front().steps.empty());
+  EXPECT_THAT(
+      extraction.workflows.front().steps,
+      ::testing::ElementsAre("processdata calls renderframe",
+                             "renderframe owns framebuffer",
+                             "renderframe uses-type frameconfig"));
   EXPECT_FALSE(extraction.extraction_notes.empty());
 }
 

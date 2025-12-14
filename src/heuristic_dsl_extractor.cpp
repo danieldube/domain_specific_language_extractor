@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -50,6 +52,16 @@ std::string CanonicalizeName(std::string name) {
                    return static_cast<char>(std::tolower(character));
                  });
   return name;
+}
+
+std::string EvidenceLocation(const dsl::AstFact &fact) {
+  if (fact.source_location.empty()) {
+    return fact.range;
+  }
+  if (fact.range.empty()) {
+    return fact.source_location;
+  }
+  return fact.source_location + "@" + fact.range;
 }
 
 std::string DeriveTermKind(const std::string &base_kind) {
@@ -104,29 +116,34 @@ std::string RelationshipVerbForKind(const std::string &base_kind) {
   return base_kind;
 }
 
-void AddEvidence(const std::string &source_location,
+bool IsSymbolReference(const ParsedKind &parsed) {
+  return parsed.base_kind == "reference" || parsed.base_kind == "alias" ||
+         parsed.base_kind == "symbol_reference";
+}
+
+void AddEvidence(const std::string &evidence_location,
                  std::vector<std::string> &evidence) {
-  if (source_location.empty()) {
+  if (evidence_location.empty()) {
     return;
   }
-  if (std::find(evidence.begin(), evidence.end(), source_location) ==
+  if (std::find(evidence.begin(), evidence.end(), evidence_location) ==
       evidence.end()) {
-    evidence.push_back(source_location);
+    evidence.push_back(evidence_location);
   }
 }
 
-void MergeDefinition(const std::optional<std::string> &descriptor,
-                     dsl::DslTerm &term) {
-  if (!descriptor.has_value()) {
+void AppendDefinitionPart(const std::string &definition_part,
+                          dsl::DslTerm &term) {
+  if (definition_part.empty()) {
     return;
   }
   if (term.definition.empty()) {
-    term.definition = *descriptor;
+    term.definition = definition_part;
     return;
   }
-  if (term.definition.find(*descriptor) == std::string::npos) {
+  if (term.definition.find(definition_part) == std::string::npos) {
     term.definition.append(" | ");
-    term.definition.append(*descriptor);
+    term.definition.append(definition_part);
   }
 }
 
@@ -152,13 +169,13 @@ void EnsureFallbackDefinitions(TermMap &terms) {
   }
 }
 
-void AddAlias(const dsl::AstFact &fact, const std::string &canonical_name,
-              AliasMap &aliases, dsl::DslTerm &term) {
-  if (canonical_name == fact.name) {
+void AppendAlias(const std::string &canonical_name, const std::string &alias,
+                 AliasMap &aliases, dsl::DslTerm &term) {
+  if (canonical_name == alias) {
     return;
   }
-  if (aliases[canonical_name].insert(fact.name).second) {
-    term.aliases.push_back(fact.name);
+  if (aliases[canonical_name].insert(alias).second) {
+    term.aliases.push_back(alias);
   }
 }
 
@@ -199,27 +216,46 @@ void TrackRelationship(const dsl::AstFact &fact, const ParsedKind &parsed,
   const auto key = MakeRelationshipKey(fact, parsed);
   auto &relationship = relationships[key];
   InitializeRelationshipParticipants(key, relationship);
-  AddEvidence(fact.source_location, relationship.evidence);
+  AddEvidence(EvidenceLocation(fact), relationship.evidence);
   UpdateRelationshipNotes(parsed, relationship);
   ++relationship.usage_count;
+}
+
+void TrackTargetReference(const dsl::AstFact &fact, const ParsedKind &parsed,
+                          TermMap &terms, AliasMap &aliases) {
+  if (!parsed.relationship_target.has_value()) {
+    return;
+  }
+  const auto target_name = CanonicalizeName(*parsed.relationship_target);
+  auto &target = terms[target_name];
+  if (target.name.empty()) {
+    target.name = target_name;
+  }
+  AddEvidence(EvidenceLocation(fact), target.evidence);
+  ++target.usage_count;
+  if (IsSymbolReference(parsed)) {
+    AppendAlias(target_name, fact.name, aliases, target);
+  }
 }
 
 void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
                         AliasMap &aliases, RelationshipMap &relationships) {
   const auto parsed = ParseKind(fact);
+  if (IsSymbolReference(parsed) && parsed.relationship_target.has_value()) {
+    TrackTargetReference(fact, parsed, terms, aliases);
+    return;
+  }
   const auto canonical_name = CanonicalizeName(fact.name);
   auto &term = terms[canonical_name];
   term.name = canonical_name;
   EnsureKindInitialized(parsed, term);
-  auto descriptor = parsed.descriptor;
-  if (!descriptor.has_value() && !fact.signature.empty()) {
-    descriptor = fact.signature;
-  }
-  MergeDefinition(descriptor, term);
-  AddEvidence(fact.source_location, term.evidence);
+  AppendDefinitionPart(parsed.descriptor.value_or(""), term);
+  AppendDefinitionPart(fact.signature, term);
+  AddEvidence(EvidenceLocation(fact), term.evidence);
   ++term.usage_count;
-  AddAlias(fact, canonical_name, aliases, term);
+  AppendAlias(canonical_name, fact.name, aliases, term);
   TrackRelationship(fact, parsed, relationships);
+  TrackTargetReference(fact, parsed, terms, aliases);
   EnsureDefaultDefinition(parsed, term);
 }
 
@@ -250,6 +286,16 @@ BuildRelationships(RelationshipMap relationships) {
   for (auto &entry : relationships) {
     relationship_list.push_back(std::move(entry.second));
   }
+  std::sort(relationship_list.begin(), relationship_list.end(),
+            [](const auto &lhs, const auto &rhs) {
+              if (lhs.subject != rhs.subject) {
+                return lhs.subject < rhs.subject;
+              }
+              if (lhs.verb != rhs.verb) {
+                return lhs.verb < rhs.verb;
+              }
+              return lhs.object < rhs.object;
+            });
   return relationship_list;
 }
 
@@ -258,13 +304,69 @@ BuildWorkflows(const std::vector<dsl::DslRelationship> &relationships) {
   if (relationships.empty()) {
     return {};
   }
-  dsl::DslExtractionResult::Workflow workflow{};
-  workflow.name = "Heuristic relationships";
+  std::map<std::string, std::vector<const dsl::DslRelationship *>> adjacency;
+  std::set<std::string> objects;
   for (const auto &relationship : relationships) {
-    workflow.steps.push_back(relationship.subject + " " + relationship.verb +
-                             " " + relationship.object);
+    adjacency[relationship.subject].push_back(&relationship);
+    objects.insert(relationship.object);
   }
-  return {workflow};
+  std::vector<dsl::DslExtractionResult::Workflow> workflows;
+  std::set<const dsl::DslRelationship *> visited;
+
+  const auto build_steps = [&](const auto &self, const std::string &subject,
+                               std::vector<std::string> &steps) -> void {
+    const auto iterator = adjacency.find(subject);
+    if (iterator == adjacency.end()) {
+      return;
+    }
+    for (const auto *relationship : iterator->second) {
+      if (!visited.insert(relationship).second) {
+        continue;
+      }
+      steps.push_back(relationship->subject + " " + relationship->verb + " " +
+                      relationship->object);
+      self(self, relationship->object, steps);
+    }
+  };
+
+  for (const auto &entry : adjacency) {
+    const auto &subject = entry.first;
+    if (objects.find(subject) != objects.end()) {
+      continue;
+    }
+    dsl::DslExtractionResult::Workflow workflow{};
+    workflow.name = subject + " workflow";
+    build_steps(build_steps, subject, workflow.steps);
+    if (!workflow.steps.empty()) {
+      workflows.push_back(std::move(workflow));
+    }
+  }
+
+  if (!visited.empty() && visited.size() == relationships.size()) {
+    return workflows;
+  }
+
+  if (workflows.empty()) {
+    dsl::DslExtractionResult::Workflow workflow{};
+    workflow.name = "Heuristic relationships";
+    for (const auto &relationship : relationships) {
+      workflow.steps.push_back(relationship.subject + " " + relationship.verb +
+                               " " + relationship.object);
+    }
+    workflows.push_back(std::move(workflow));
+    return workflows;
+  }
+
+  for (const auto &relationship : relationships) {
+    if (visited.find(&relationship) != visited.end()) {
+      continue;
+    }
+    workflows.front().steps.push_back(relationship.subject + " " +
+                                      relationship.verb + " " +
+                                      relationship.object);
+  }
+
+  return workflows;
 }
 
 void AppendExtractionNotes(dsl::DslExtractionResult &result) {
