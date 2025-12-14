@@ -141,6 +141,125 @@ TEST(RuleBasedCoherenceAnalyzerTest, DetectsDuplicateTerms) {
   EXPECT_EQ(result.findings.front().term, "shared");
 }
 
+TEST(RuleBasedCoherenceAnalyzerTest, DetectsAmbiguousAliases) {
+  DslExtractionResult extraction;
+  DslTerm first;
+  first.name = "alpha";
+  first.aliases = {"SharedAlias"};
+  first.evidence = {"alpha:1"};
+  DslTerm second;
+  second.name = "beta";
+  second.aliases = {"SharedAlias"};
+  second.evidence = {"beta:2"};
+  extraction.terms = {first, second};
+
+  DslRelationship relationship;
+  relationship.subject = "alpha";
+  relationship.verb = "relates";
+  relationship.object = "beta";
+  extraction.relationships = {relationship};
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&Finding::term, "sharedalias"),
+                  ::testing::Field(&Finding::conflict,
+                                   ::testing::HasSubstr("Alias reused")),
+                  ::testing::Field(
+                      &Finding::examples,
+                      ::testing::Contains(::testing::HasSubstr("alpha"))))));
+}
+
+TEST(RuleBasedCoherenceAnalyzerTest, DetectsConflictingVerbsBetweenSamePair) {
+  DslExtractionResult extraction;
+  DslRelationship calls;
+  calls.subject = "alpha";
+  calls.verb = "calls";
+  calls.object = "beta";
+  calls.evidence = {"alpha calls beta"};
+
+  DslRelationship owns;
+  owns.subject = "alpha";
+  owns.verb = "owns";
+  owns.object = "beta";
+  owns.evidence = {"alpha owns beta"};
+  extraction.relationships = {calls, owns};
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&Finding::term, "alpha->beta"),
+                  ::testing::Field(&Finding::conflict,
+                                   ::testing::HasSubstr("Conflicting verbs")),
+                  ::testing::Field(&Finding::examples,
+                                   ::testing::Contains(::testing::HasSubstr(
+                                       "alpha calls beta"))))));
+}
+
+TEST(RuleBasedCoherenceAnalyzerTest, FlagsHighUsageTermsWithoutRelationships) {
+  DslExtractionResult extraction;
+  DslTerm busy;
+  busy.name = "busy";
+  busy.usage_count = 5;
+  busy.evidence = {"busy evidence"};
+  DslTerm connected;
+  connected.name = "connected";
+  extraction.terms = {busy, connected};
+
+  DslRelationship unrelated;
+  unrelated.subject = "connected";
+  unrelated.verb = "links";
+  unrelated.object = "else";
+  extraction.relationships = {unrelated};
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&Finding::term, "busy"),
+                  ::testing::Field(&Finding::conflict,
+                                   ::testing::HasSubstr("High-usage term")),
+                  ::testing::Field(&Finding::examples,
+                                   ::testing::Contains("busy evidence")))));
+}
+
+TEST(RuleBasedCoherenceAnalyzerTest,
+     DetectsCanonicalizationInconsistenciesAcrossArtifacts) {
+  DslExtractionResult extraction;
+  DslTerm service;
+  service.name = "PaymentService";
+  DslTerm duplicate;
+  duplicate.name = "paymentservice";
+  extraction.terms = {service, duplicate};
+
+  DslRelationship helper;
+  helper.subject = "Helper";
+  helper.verb = "uses";
+  helper.object = "Other";
+  extraction.relationships = {helper};
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&Finding::term, "paymentservice"),
+                  ::testing::Field(&Finding::conflict,
+                                   ::testing::HasSubstr("canonicalization")),
+                  ::testing::Field(&Finding::examples,
+                                   ::testing::Contains(::testing::HasSubstr(
+                                       "PaymentService"))))));
+}
+
 TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
   test::TemporaryProject project;
   project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
