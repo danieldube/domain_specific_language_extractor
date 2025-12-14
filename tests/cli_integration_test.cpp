@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <sys/wait.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -47,6 +48,10 @@ std::filesystem::path ExecutableUnderTest() {
   return current / "dsl_analyzer";
 }
 
+int ExitCode(const std::string &command) {
+  return WEXITSTATUS(std::system(command.c_str()));
+}
+
 TEST(CliIntegrationTest, GeneratesReportsForSampleProject) {
   test::TemporaryProject project;
   const auto cmake_lists = project.AddFile(
@@ -69,7 +74,7 @@ TEST(CliIntegrationTest, GeneratesReportsForSampleProject) {
       " --format markdown,json --scope-notes integration --out " +
       output_directory.string();
 
-  ASSERT_EQ(std::system(command.c_str()), 0);
+  ASSERT_EQ(ExitCode(command), 2);
 
   const auto markdown_report = output_directory / "dsl_report.md";
   const auto json_report = output_directory / "dsl_report.json";
@@ -100,7 +105,7 @@ TEST(CliIntegrationTest, DefaultsMirrorLegacyBehavior) {
                               project.root().string() + " --build " +
                               build_directory.string();
 
-  ASSERT_EQ(std::system(command.c_str()), 0);
+  ASSERT_EQ(ExitCode(command), 2);
 
   const auto markdown_report = project.root() / "dsl_report.md";
   const auto json_report = project.root() / "dsl_report.json";

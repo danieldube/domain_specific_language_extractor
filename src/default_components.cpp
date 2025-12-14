@@ -225,6 +225,9 @@ RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
   AddConflictingVerbFindings(extraction.relationships, result);
   AddHighUsageMissingRelationshipFindings(extraction, result);
   AddCanonicalizationInconsistencyFindings(extraction, result);
+  if (!result.findings.empty()) {
+    result.severity = CoherenceSeverity::kIncoherent;
+  }
   return result;
 }
 AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
