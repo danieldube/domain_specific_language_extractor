@@ -68,7 +68,13 @@ struct Finding {
   std::string description;
 };
 
+enum class CoherenceSeverity {
+  kClean,
+  kIncoherent,
+};
+
 struct CoherenceResult {
+  CoherenceSeverity severity = CoherenceSeverity::kClean;
   std::vector<Finding> findings;
 };
 

@@ -27,6 +27,9 @@ dsl-extract analyze --root <path> [--build <dir>] [--format markdown,json] \
   defaulting to Markdown only when unspecified.
 - Placeholder commands (`report`, `cache clean`) are reserved for future
   extensions and currently emit guidance via the CLI help text.
+- Exit codes: `0` when analysis finishes without coherence findings, `2` when
+  incoherence findings are present, and `1` for fatal errors such as missing
+  inputs or unsupported commands.
 
 ## Architecture Documentation
 The Arc42 design document lives in [`docs/arc42.md`](docs/arc42.md). Consult it

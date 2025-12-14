@@ -19,9 +19,9 @@ endif()
 
 add_library(
   dsl_core
-  src/default_components.cpp src/heuristic_dsl_extractor.cpp
-  src/cmake_source_acquirer.cpp src/markdown_reporter.cpp
-  src/compile_commands_ast_indexer.cpp)
+  src/cli_exit_codes.cpp src/default_components.cpp
+  src/heuristic_dsl_extractor.cpp src/cmake_source_acquirer.cpp
+  src/markdown_reporter.cpp src/compile_commands_ast_indexer.cpp)
 
 add_executable(dsl_analyzer src/dsl_analyzer.cpp)
 set_target_properties(dsl_analyzer PROPERTIES OUTPUT_NAME "dsl-extract")
@@ -46,6 +46,7 @@ target_sources(
          ${CMAKE_CURRENT_SOURCE_DIR}/include
          FILES
          include/dsl/default_components.h
+         include/dsl/cli_exit_codes.h
          include/dsl/heuristic_dsl_extractor.h
          include/dsl/interfaces.h
          include/dsl/models.h)
@@ -68,7 +69,7 @@ include(GoogleTest)
 
 set(TEST_SOURCES
     tests/components_test.cpp tests/cmake_source_acquirer_test.cpp
-    tests/markdown_reporter_test.cpp
+    tests/markdown_reporter_test.cpp tests/exit_code_test.cpp
     tests/compile_commands_ast_indexer_test.cpp tests/cli_integration_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})
 

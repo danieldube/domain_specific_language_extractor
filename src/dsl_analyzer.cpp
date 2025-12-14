@@ -1,3 +1,4 @@
+#include <dsl/cli_exit_codes.h>
 #include <dsl/default_components.h>
 #include <dsl/models.h>
 
@@ -198,7 +199,7 @@ int main(int argc, char **argv) {
                                    ? options.root
                                    : options.output_directory;
       WriteReports(output_root, result.report);
-      return 0;
+      return dsl::CoherenceExitCode(result.coherence);
     }
 
     if (command == "report") {
