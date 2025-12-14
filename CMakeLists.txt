@@ -62,8 +62,7 @@ include(GoogleTest)
 set(TEST_SOURCES
     tests/components_test.cpp tests/cmake_source_acquirer_test.cpp
     tests/markdown_reporter_test.cpp
-    tests/compile_commands_ast_indexer_test.cpp
-    tests/cli_integration_test.cpp)
+    tests/compile_commands_ast_indexer_test.cpp tests/cli_integration_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})
 
 add_dependencies(dsl_tests dsl_analyzer)

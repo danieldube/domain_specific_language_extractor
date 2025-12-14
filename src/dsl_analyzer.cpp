@@ -22,15 +22,17 @@ struct CliOptions {
 };
 
 void PrintUsage() {
-  std::cout << "Usage: dsl_analyzer --root <path> [options]\n"
-            << "Options:\n"
-            << "  --root <path>         Root directory of the CMake project\n"
-            << "  --build <path>        Build directory containing compile_commands.json\n"
-            << "                        (default: build)\n"
-            << "  --format <list>       Comma-separated list of output formats\n"
-            << "                        (supported: markdown,json)\n"
-            << "  --scope-notes <text>  Scope notes to embed in the report header\n"
-            << "  --help                Show this message\n";
+  std::cout
+      << "Usage: dsl_analyzer --root <path> [options]\n"
+      << "Options:\n"
+      << "  --root <path>         Root directory of the CMake project\n"
+      << "  --build <path>        Build directory containing "
+         "compile_commands.json\n"
+      << "                        (default: build)\n"
+      << "  --format <list>       Comma-separated list of output formats\n"
+      << "                        (supported: markdown,json)\n"
+      << "  --scope-notes <text>  Scope notes to embed in the report header\n"
+      << "  --help                Show this message\n";
 }
 
 std::vector<std::string> SplitFormats(const std::string &raw_formats) {
@@ -123,7 +125,8 @@ void WriteFileIfContent(const std::filesystem::path &path,
   stream << content;
 }
 
-void WriteReports(const std::filesystem::path &root, const dsl::Report &report) {
+void WriteReports(const std::filesystem::path &root,
+                  const dsl::Report &report) {
   WriteFileIfContent(root / "dsl_report.md", report.markdown);
   WriteFileIfContent(root / "dsl_report.json", report.json);
 }
@@ -138,7 +141,8 @@ int main(int argc, char **argv) {
       return 0;
     }
 
-    dsl::AnalyzerPipelineBuilder builder = dsl::AnalyzerPipelineBuilder::WithDefaults();
+    dsl::AnalyzerPipelineBuilder builder =
+        dsl::AnalyzerPipelineBuilder::WithDefaults();
     builder.WithSourceAcquirer(
         std::make_unique<dsl::CMakeSourceAcquirer>(options.build_directory));
 

@@ -15,9 +15,9 @@ namespace {
 
 using ::testing::Gt;
 
-std::filesystem::path WriteCompileCommands(
-    const std::filesystem::path &build_directory,
-    const std::filesystem::path &source_path) {
+std::filesystem::path
+WriteCompileCommands(const std::filesystem::path &build_directory,
+                     const std::filesystem::path &source_path) {
   std::filesystem::create_directories(build_directory);
   const auto compile_commands_path = build_directory / "compile_commands.json";
   std::ofstream stream(compile_commands_path);
@@ -46,8 +46,8 @@ std::filesystem::path ExecutableUnderTest() {
 TEST(CliIntegrationTest, GeneratesReportsForSampleProject) {
   test::TemporaryProject project;
   const auto cmake_lists = project.AddFile(
-      "CMakeLists.txt",
-      "cmake_minimum_required(VERSION 3.20)\nproject(sample CXX)\nadd_library(sample src/example.cpp)\n");
+      "CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\nproject(sample "
+                        "CXX)\nadd_library(sample src/example.cpp)\n");
   (void)cmake_lists;
   const auto source_path =
       project.AddFile("src/example.cpp", "int Example() { return 42; }\n");
@@ -58,10 +58,10 @@ TEST(CliIntegrationTest, GeneratesReportsForSampleProject) {
   ASSERT_TRUE(std::filesystem::exists(cli))
       << "Expected CLI executable at " << cli;
 
-  const std::string command = cli.string() +
-                              " --root " + project.root().string() +
-                              " --build " + build_directory.string() +
-                              " --format markdown,json --scope-notes integration";
+  const std::string command =
+      cli.string() + " --root " + project.root().string() + " --build " +
+      build_directory.string() +
+      " --format markdown,json --scope-notes integration";
 
   ASSERT_EQ(std::system(command.c_str()), 0);
 
