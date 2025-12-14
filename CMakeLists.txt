@@ -23,6 +23,10 @@ add_library(
   src/cmake_source_acquirer.cpp src/markdown_reporter.cpp
   src/compile_commands_ast_indexer.cpp)
 
+add_executable(dsl_analyzer src/dsl_analyzer.cpp)
+target_link_libraries(dsl_analyzer PRIVATE dsl_core)
+install(TARGETS dsl_analyzer RUNTIME DESTINATION bin)
+
 target_sources(
   dsl_core
   PRIVATE src/default_components.cpp src/heuristic_dsl_extractor.cpp
@@ -58,8 +62,11 @@ include(GoogleTest)
 set(TEST_SOURCES
     tests/components_test.cpp tests/cmake_source_acquirer_test.cpp
     tests/markdown_reporter_test.cpp
-    tests/compile_commands_ast_indexer_test.cpp)
+    tests/compile_commands_ast_indexer_test.cpp
+    tests/cli_integration_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})
+
+add_dependencies(dsl_tests dsl_analyzer)
 
 target_link_libraries(dsl_tests PRIVATE dsl_core GTest::gtest_main GTest::gmock)
 
