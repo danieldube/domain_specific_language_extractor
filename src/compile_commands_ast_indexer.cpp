@@ -1,8 +1,8 @@
 #include <dsl/default_components.h>
 
+#include <algorithm>
 #include <clang-c/CXCompilationDatabase.h>
 #include <clang-c/Index.h>
-#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -76,10 +76,10 @@ std::filesystem::path CanonicalPathOrEmpty(const std::string &path) {
   return std::filesystem::weakly_canonical(path);
 }
 
-std::filesystem::path ChooseCompileCommandsPath(
-    const std::filesystem::path &explicit_path,
-    const std::filesystem::path &project_root,
-    const std::filesystem::path &build_directory) {
+std::filesystem::path
+ChooseCompileCommandsPath(const std::filesystem::path &explicit_path,
+                          const std::filesystem::path &project_root,
+                          const std::filesystem::path &build_directory) {
   if (!explicit_path.empty()) {
     return std::filesystem::weakly_canonical(explicit_path);
   }
@@ -482,9 +482,9 @@ std::vector<AstFact> CollectFacts(CXTranslationUnit translation_unit,
   return collector.Collect(root);
 }
 
-std::vector<AstFact> ExtractFactsFromCommand(
-    CXIndex index, const CompileCommandEntry &entry,
-    const std::filesystem::path &project_root) {
+std::vector<AstFact>
+ExtractFactsFromCommand(CXIndex index, const CompileCommandEntry &entry,
+                        const std::filesystem::path &project_root) {
   const auto args = NormalizeArgs(entry);
   std::vector<const char *> arg_pointers;
   arg_pointers.reserve(args.size());
@@ -524,9 +524,10 @@ std::vector<AstFact> ExtractFactsFromCommand(
   return facts;
 }
 
-std::filesystem::path CanonicalTranslationUnitPath(
-    const std::string &file, const std::string &directory,
-    const std::filesystem::path &project_root) {
+std::filesystem::path
+CanonicalTranslationUnitPath(const std::string &file,
+                             const std::string &directory,
+                             const std::filesystem::path &project_root) {
   auto path = std::filesystem::path(file);
   if (path.is_relative()) {
     if (!directory.empty()) {
@@ -538,9 +539,9 @@ std::filesystem::path CanonicalTranslationUnitPath(
   return std::filesystem::weakly_canonical(path);
 }
 
-std::vector<CompileCommandEntry> LoadCompileCommandsFromJson(
-    const std::filesystem::path &compile_commands_path,
-    const std::filesystem::path &project_root) {
+std::vector<CompileCommandEntry>
+LoadCompileCommandsFromJson(const std::filesystem::path &compile_commands_path,
+                            const std::filesystem::path &project_root) {
   std::ifstream stream(compile_commands_path);
   if (!stream.is_open()) {
     return {};
@@ -550,13 +551,15 @@ std::vector<CompileCommandEntry> LoadCompileCommandsFromJson(
 
   const std::regex object_regex("\\{[^\\}]*\\}");
   const std::regex file_regex("\\\"file\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-  const std::regex directory_regex("\\\"directory\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+  const std::regex directory_regex(
+      "\\\"directory\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
   const std::regex command_regex("\\\"command\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
 
   std::unordered_set<std::string> seen_paths;
   std::vector<CompileCommandEntry> entries;
 
-  for (std::sregex_iterator object(content.begin(), content.end(), object_regex),
+  for (std::sregex_iterator
+           object(content.begin(), content.end(), object_regex),
        end;
        object != end; ++object) {
     const auto object_text = object->str();
@@ -570,8 +573,8 @@ std::vector<CompileCommandEntry> LoadCompileCommandsFromJson(
         std::regex_search(object_text, directory_match, directory_regex)
             ? directory_match[1].str()
             : std::string{};
-    const auto path = CanonicalTranslationUnitPath(file_match[1], directory,
-                                                   project_root);
+    const auto path =
+        CanonicalTranslationUnitPath(file_match[1], directory, project_root);
 
     if (path.empty() || seen_paths.count(path.string()) > 0 ||
         !std::filesystem::exists(path) ||
@@ -600,13 +603,13 @@ std::vector<CompileCommandEntry> LoadCompileCommandsFromJson(
   return entries;
 }
 
-std::vector<CompileCommandEntry> LoadCompileCommands(
-    const std::filesystem::path &compile_commands_path,
-    const std::filesystem::path &project_root) {
+std::vector<CompileCommandEntry>
+LoadCompileCommands(const std::filesystem::path &compile_commands_path,
+                    const std::filesystem::path &project_root) {
   CXCompilationDatabase_Error error = CXCompilationDatabase_NoError;
   const auto parent = compile_commands_path.parent_path();
-  CXCompilationDatabase database = clang_CompilationDatabase_fromDirectory(
-      parent.string().c_str(), &error);
+  CXCompilationDatabase database =
+      clang_CompilationDatabase_fromDirectory(parent.string().c_str(), &error);
 
   if (error != CXCompilationDatabase_NoError || database == nullptr) {
     return LoadCompileCommandsFromJson(compile_commands_path, project_root);
@@ -621,7 +624,8 @@ std::vector<CompileCommandEntry> LoadCompileCommands(
   entries.reserve(size);
 
   for (unsigned index = 0; index < size; ++index) {
-    CXCompileCommand command = clang_CompileCommands_getCommand(commands, index);
+    CXCompileCommand command =
+        clang_CompileCommands_getCommand(commands, index);
     const auto file = ToString(clang_CompileCommand_getFilename(command));
     const auto directory = ToString(clang_CompileCommand_getDirectory(command));
     auto translation_unit_path =
@@ -654,10 +658,10 @@ std::vector<CompileCommandEntry> LoadCompileCommands(
   return entries;
 }
 
-std::vector<CompileCommandEntry> BuildFallbackCommands(
-    const SourceAcquisitionResult &sources,
-    const std::filesystem::path &project_root,
-    const std::filesystem::path &build_directory) {
+std::vector<CompileCommandEntry>
+BuildFallbackCommands(const SourceAcquisitionResult &sources,
+                      const std::filesystem::path &project_root,
+                      const std::filesystem::path &build_directory) {
   std::vector<CompileCommandEntry> entries;
   for (const auto &file : sources.files) {
     std::filesystem::path path(file);
@@ -725,9 +729,10 @@ CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
     DebugLog("command args for " + entry.file.string() + " -> [" +
              Join(entry.args, ", ") + "]");
 
-    for (auto &fact : ExtractFactsFromCommand(clang_index, entry, project_root)) {
-      const auto fingerprint = fact.name + "|" + fact.kind + "|" +
-                               fact.target + "|" + fact.source_location;
+    for (auto &fact :
+         ExtractFactsFromCommand(clang_index, entry, project_root)) {
+      const auto fingerprint = fact.name + "|" + fact.kind + "|" + fact.target +
+                               "|" + fact.source_location;
       if (seen_facts.insert(fingerprint).second) {
         index.facts.push_back(std::move(fact));
       }

@@ -10,10 +10,8 @@ find_library(
   NAMES clang
   HINTS /usr/lib/llvm-18/lib /usr/lib/llvm-18/lib64 /usr/lib)
 
-find_path(
-  LIBCLANG_INCLUDE_DIR
-  clang-c/Index.h
-  HINTS /usr/lib/llvm-18/include /usr/include)
+find_path(LIBCLANG_INCLUDE_DIR clang-c/Index.h HINTS /usr/lib/llvm-18/include
+                                                     /usr/include)
 
 if(NOT LIBCLANG_LIBRARY OR NOT LIBCLANG_INCLUDE_DIR)
   message(FATAL_ERROR "libclang not found. Install libclang-dev.")
@@ -42,8 +40,9 @@ target_sources(
          include/dsl/models.h)
 
 target_include_directories(
-  dsl_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE
-                   ${LIBCLANG_INCLUDE_DIR})
+  dsl_core
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+  PRIVATE ${LIBCLANG_INCLUDE_DIR})
 
 target_link_libraries(dsl_core PRIVATE ${LIBCLANG_LIBRARY})
 
