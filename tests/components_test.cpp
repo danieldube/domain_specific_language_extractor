@@ -271,14 +271,13 @@ TEST(RuleBasedCoherenceAnalyzerTest, FlagsMutatingOrVoidGetter) {
 
   const auto result = analyzer.Analyze(extraction);
 
+  EXPECT_THAT(
+      result.findings,
+      ::testing::Contains(::testing::Field(
+          &Finding::conflict, ::testing::HasSubstr("Getter mutates state"))));
   EXPECT_THAT(result.findings,
               ::testing::Contains(::testing::Field(
-                  &Finding::conflict,
-                  ::testing::HasSubstr("Getter mutates state"))));
-  EXPECT_THAT(result.findings,
-              ::testing::Contains(::testing::Field(
-                  &Finding::conflict,
-                  ::testing::HasSubstr("returns void"))));
+                  &Finding::conflict, ::testing::HasSubstr("returns void"))));
 }
 
 TEST(RuleBasedCoherenceAnalyzerTest, FlagsSetterWithoutMutations) {
@@ -290,10 +289,10 @@ TEST(RuleBasedCoherenceAnalyzerTest, FlagsSetterWithoutMutations) {
 
   const auto result = analyzer.Analyze(extraction);
 
-  EXPECT_THAT(result.findings,
-              ::testing::Contains(::testing::Field(
-                  &Finding::conflict,
-                  ::testing::HasSubstr("Setter lacks mutations"))));
+  EXPECT_THAT(
+      result.findings,
+      ::testing::Contains(::testing::Field(
+          &Finding::conflict, ::testing::HasSubstr("Setter lacks mutations"))));
 }
 
 TEST(RuleBasedCoherenceAnalyzerTest, FlagsImpureOrNonBoolPredicates) {
@@ -307,10 +306,10 @@ TEST(RuleBasedCoherenceAnalyzerTest, FlagsImpureOrNonBoolPredicates) {
 
   const auto result = analyzer.Analyze(extraction);
 
-  EXPECT_THAT(result.findings,
-              ::testing::Contains(::testing::Field(
-                  &Finding::conflict,
-                  ::testing::HasSubstr("does not return bool"))));
+  EXPECT_THAT(
+      result.findings,
+      ::testing::Contains(::testing::Field(
+          &Finding::conflict, ::testing::HasSubstr("does not return bool"))));
   EXPECT_THAT(result.findings,
               ::testing::Contains(::testing::Field(
                   &Finding::conflict,
@@ -328,10 +327,10 @@ TEST(RuleBasedCoherenceAnalyzerTest, DetectsOpenWithoutCloseInCaller) {
 
   const auto result = analyzer.Analyze(extraction);
 
-  EXPECT_THAT(result.findings,
-              ::testing::Contains(::testing::Field(
-                  &Finding::conflict,
-                  ::testing::HasSubstr("Lifecycle mismatch"))));
+  EXPECT_THAT(
+      result.findings,
+      ::testing::Contains(::testing::Field(
+          &Finding::conflict, ::testing::HasSubstr("Lifecycle mismatch"))));
 }
 
 TEST(RuleBasedCoherenceAnalyzerTest, AcceptsBalancedOpenCloseInCaller) {

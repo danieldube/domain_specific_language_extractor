@@ -216,17 +216,20 @@ std::string Trim(std::string value) {
   const auto is_space = [](unsigned char character) {
     return std::isspace(character) != 0;
   };
-  value.erase(value.begin(),
-              std::find_if(value.begin(), value.end(),
-                           [&](unsigned char character) { return !is_space(character); }));
-  value.erase(std::find_if(value.rbegin(), value.rend(),
-                           [&](unsigned char character) { return !is_space(character); })
+  value.erase(value.begin(), std::find_if(value.begin(), value.end(),
+                                          [&](unsigned char character) {
+                                            return !is_space(character);
+                                          }));
+  value.erase(std::find_if(
+                  value.rbegin(), value.rend(),
+                  [&](unsigned char character) { return !is_space(character); })
                   .base(),
               value.end());
   return value;
 }
 
-bool StartsWithInsensitive(const std::string &value, const std::string &prefix) {
+bool StartsWithInsensitive(const std::string &value,
+                           const std::string &prefix) {
   if (value.size() < prefix.size()) {
     return false;
   }
