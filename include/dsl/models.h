@@ -53,6 +53,7 @@ struct DslExtractionResult {
   std::vector<DslTerm> terms;
   std::vector<DslRelationship> relationships;
   std::vector<std::string> extraction_notes;
+  std::vector<AstFact> facts;
   struct Workflow {
     std::string name;
     std::vector<std::string> steps;

@@ -260,6 +260,94 @@ TEST(RuleBasedCoherenceAnalyzerTest,
                                        "PaymentService"))))));
 }
 
+TEST(RuleBasedCoherenceAnalyzerTest, FlagsMutatingOrVoidGetter) {
+  DslExtractionResult extraction;
+  extraction.facts = {
+      {"GetValue", "function", "file.cpp:3", "void GetValue()", "", "", ""},
+      {"GetValue", "mutation", "file.cpp:4", "", "writes cache", "", ""},
+  };
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::Field(
+                  &Finding::conflict,
+                  ::testing::HasSubstr("Getter mutates state"))));
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::Field(
+                  &Finding::conflict,
+                  ::testing::HasSubstr("returns void"))));
+}
+
+TEST(RuleBasedCoherenceAnalyzerTest, FlagsSetterWithoutMutations) {
+  DslExtractionResult extraction;
+  extraction.facts = {{"SetValue", "function", "file.cpp:8",
+                       "void SetValue(int value)", "", "", ""}};
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::Field(
+                  &Finding::conflict,
+                  ::testing::HasSubstr("Setter lacks mutations"))));
+}
+
+TEST(RuleBasedCoherenceAnalyzerTest, FlagsImpureOrNonBoolPredicates) {
+  DslExtractionResult extraction;
+  extraction.facts = {
+      {"IsReady", "function", "file.cpp:12", "int IsReady()", "", "", ""},
+      {"IsReady", "mutation", "file.cpp:13", "", "updates cache", "", ""},
+  };
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::Field(
+                  &Finding::conflict,
+                  ::testing::HasSubstr("does not return bool"))));
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::Field(
+                  &Finding::conflict,
+                  ::testing::HasSubstr("Predicate mutates state"))));
+}
+
+TEST(RuleBasedCoherenceAnalyzerTest, DetectsOpenWithoutCloseInCaller) {
+  DslExtractionResult extraction;
+  extraction.facts = {
+      {"Controller::Run", "call", "runner.cpp:20", "", "", "OpenSession", ""},
+      {"Controller::Run", "call", "runner.cpp:21", "", "", "DoWork", ""},
+  };
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_THAT(result.findings,
+              ::testing::Contains(::testing::Field(
+                  &Finding::conflict,
+                  ::testing::HasSubstr("Lifecycle mismatch"))));
+}
+
+TEST(RuleBasedCoherenceAnalyzerTest, AcceptsBalancedOpenCloseInCaller) {
+  DslExtractionResult extraction;
+  extraction.facts = {
+      {"Controller::Run", "call", "runner.cpp:20", "", "", "OpenSession", ""},
+      {"Controller::Run", "call", "runner.cpp:22", "", "", "CloseSession", ""},
+  };
+
+  RuleBasedCoherenceAnalyzer analyzer;
+
+  const auto result = analyzer.Analyze(extraction);
+
+  EXPECT_TRUE(result.findings.empty());
+}
+
 TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
   test::TemporaryProject project;
   project.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
