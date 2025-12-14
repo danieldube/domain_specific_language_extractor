@@ -23,12 +23,13 @@ struct AnalyzeOptions {
 };
 
 void PrintGlobalUsage() {
-  std::cout << "Usage: dsl-extract <command> [options]\n\n"
-            << "Commands:\n"
-            << "  analyze   Run DSL analysis (default if no command is given).\n"
-            << "  report    (placeholder) Render reports from cached analysis.\n"
-            << "  cache     (placeholder) Manage CLI caches (subcommands: clean).\n\n"
-            << "Run 'dsl-extract analyze --help' for analysis options.\n";
+  std::cout
+      << "Usage: dsl-extract <command> [options]\n\n"
+      << "Commands:\n"
+      << "  analyze   Run DSL analysis (default if no command is given).\n"
+      << "  report    (placeholder) Render reports from cached analysis.\n"
+      << "  cache     (placeholder) Manage CLI caches (subcommands: clean).\n\n"
+      << "Run 'dsl-extract analyze --help' for analysis options.\n";
 }
 
 void PrintAnalyzeUsage() {
@@ -78,8 +79,8 @@ void AppendFormats(const std::string &raw_formats,
   }
 }
 
-AnalyzeOptions ParseAnalyzeArguments(
-    const std::vector<std::string> &arguments) {
+AnalyzeOptions
+ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
   AnalyzeOptions options;
 
   for (std::size_t i = 0; i < arguments.size(); ++i) {
@@ -183,8 +184,8 @@ int main(int argc, char **argv) {
 
       dsl::AnalyzerPipelineBuilder builder =
           dsl::AnalyzerPipelineBuilder::WithDefaults();
-      builder.WithSourceAcquirer(std::make_unique<dsl::CMakeSourceAcquirer>(
-          options.build_directory));
+      builder.WithSourceAcquirer(
+          std::make_unique<dsl::CMakeSourceAcquirer>(options.build_directory));
 
       auto pipeline = builder.Build();
       dsl::AnalysisConfig config;
@@ -193,8 +194,9 @@ int main(int argc, char **argv) {
       config.scope_notes = options.scope_notes;
 
       const auto result = pipeline.Run(config);
-      const auto output_root =
-          options.output_directory.empty() ? options.root : options.output_directory;
+      const auto output_root = options.output_directory.empty()
+                                   ? options.root
+                                   : options.output_directory;
       WriteReports(output_root, result.report);
       return 0;
     }
