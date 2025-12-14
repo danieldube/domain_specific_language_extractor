@@ -120,6 +120,9 @@ TEST(DefaultAnalyzerPipelineTest, RunsComponentsInOrder) {
                      << "\",\\n";
     compile_commands << "    \"file\": \""
                      << std::filesystem::weakly_canonical(source_path).string()
+                     << "\",\\n";
+    compile_commands << "    \"command\": \"clang -std=c++17 -c "
+                     << std::filesystem::weakly_canonical(source_path).string()
                      << "\"\\n";
     compile_commands << "  }\\n";
     compile_commands << "]\n";

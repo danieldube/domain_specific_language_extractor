@@ -1,10 +1,12 @@
 [
   {
     "directory": "__PROJECT_ROOT__/build",
-    "file": "__SOURCE_FILE__"
+    "file": "__SOURCE_FILE__",
+    "command": "clang -std=c++17 -c __SOURCE_FILE__"
   },
   {
     "directory": "__PROJECT_ROOT__/build",
-    "file": "__GENERATED_FILE__"
+    "file": "__GENERATED_FILE__",
+    "command": "clang -std=c++17 -c __GENERATED_FILE__"
   }
 ]

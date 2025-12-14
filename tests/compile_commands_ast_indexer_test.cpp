@@ -32,8 +32,11 @@ void ReplaceAll(std::string &text, const std::string &placeholder,
 TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
   test::TemporaryProject project;
   const auto source_path = project.AddFile(
-      "src/example.cpp", "struct Widget { int value; };\nint Add(int a, int b) "
-                         "{ return a + b; }\ndouble threshold = 3.14;\n");
+      "src/example.cpp",
+      "struct Widget { int value; };\nint Add(int a, int b) "
+      "{ return a + b; }\ndouble threshold = 3.14;\nint Use(const "
+      "Widget &widget) { return Add(widget.value, static_cast<int>(threshold)); "
+      "}\n");
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
   const auto generated_path =
@@ -66,25 +69,84 @@ TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
   CompileCommandsAstIndexer indexer;
   const auto index = indexer.BuildIndex(sources);
 
-  ASSERT_THAT(index.facts, ::testing::SizeIs(3));
+  EXPECT_THAT(index.facts, ::testing::Not(::testing::IsEmpty()));
   EXPECT_THAT(index.facts,
               ::testing::Contains(::testing::AllOf(
                   ::testing::Field(&AstFact::name, "Widget"),
                   ::testing::Field(&AstFact::kind, "type"),
+                  ::testing::Field(&AstFact::signature,
+                                   ::testing::HasSubstr("Widget")),
                   ::testing::Field(&AstFact::source_location,
                                    ::testing::HasSubstr("example.cpp:1")))));
   EXPECT_THAT(index.facts,
               ::testing::Contains(::testing::AllOf(
                   ::testing::Field(&AstFact::name, "Add"),
                   ::testing::Field(&AstFact::kind, "function"),
+                  ::testing::Field(&AstFact::signature,
+                                   ::testing::HasSubstr("int Add(int")),
                   ::testing::Field(&AstFact::source_location,
                                    ::testing::HasSubstr("example.cpp:2")))));
   EXPECT_THAT(index.facts,
               ::testing::Contains(::testing::AllOf(
                   ::testing::Field(&AstFact::name, "threshold"),
                   ::testing::Field(&AstFact::kind, "variable"),
+                  ::testing::Field(&AstFact::descriptor,
+                                   ::testing::HasSubstr("double")),
                   ::testing::Field(&AstFact::source_location,
                                    ::testing::HasSubstr("example.cpp:3")))));
+}
+
+TEST(CompileCommandsAstIndexerTest, EmitsRelationshipFactsAndMetadata) {
+  test::TemporaryProject project;
+  const auto source_path = project.AddFile(
+      "src/example.cpp",
+      "struct Widget { int value; };\nint Add(int a, int b) { return a + b; }\n"
+      "int Use(Widget widget) { return Add(widget.value, 1); }\n");
+  const auto build_dir = project.root() / "build";
+  std::filesystem::create_directories(build_dir);
+
+  const auto compile_commands_path = build_dir / "compile_commands.json";
+  {
+    std::ofstream stream(compile_commands_path);
+    stream << "[\\n";
+    stream << "  {\\n";
+    stream << "    \"directory\": \"" << build_dir.string() << "\",\\n";
+    stream << "    \"file\": \"" << source_path.string() << "\",\\n";
+    stream << "    \"command\": \"clang -std=c++17 -c "
+           << source_path.string() << "\"\\n";
+    stream << "  }\\n";
+    stream << "]\n";
+  }
+
+  SourceAcquisitionResult sources;
+  sources.project_root = project.root().string();
+  sources.build_directory = build_dir.string();
+  sources.files = {source_path.string()};
+
+  CompileCommandsAstIndexer indexer;
+  const auto index = indexer.BuildIndex(sources);
+
+  EXPECT_THAT(index.facts,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&AstFact::kind, "call"),
+                  ::testing::Field(&AstFact::name, ::testing::HasSubstr("Use")),
+                  ::testing::Field(&AstFact::target, ::testing::HasSubstr("Add")),
+                  ::testing::Field(&AstFact::signature,
+                                   ::testing::HasSubstr("int Add")))));
+  EXPECT_THAT(index.facts,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&AstFact::kind, "type_usage"),
+                  ::testing::Field(&AstFact::name, ::testing::HasSubstr("Use")),
+                  ::testing::Field(&AstFact::target, ::testing::HasSubstr("Widget")),
+                  ::testing::Field(&AstFact::descriptor,
+                                   ::testing::HasSubstr("uses Widget")))));
+  EXPECT_THAT(index.facts,
+              ::testing::Contains(::testing::AllOf(
+                  ::testing::Field(&AstFact::kind, "owns"),
+                  ::testing::Field(&AstFact::name, "Widget"),
+                  ::testing::Field(&AstFact::target, "int"),
+                  ::testing::Field(&AstFact::descriptor,
+                                   ::testing::HasSubstr("value")))));
 }
 
 TEST(CompileCommandsAstIndexerTest, SkipsBuildDirectoryEntries) {
@@ -100,7 +162,9 @@ TEST(CompileCommandsAstIndexerTest, SkipsBuildDirectoryEntries) {
     stream << "[\\n";
     stream << "  {\\n";
     stream << "    \"directory\": \"" << build_dir.string() << "\",\\n";
-    stream << "    \"file\": \"" << build_file.string() << "\"\\n";
+    stream << "    \"file\": \"" << build_file.string() << "\",\\n";
+    stream << "    \"command\": \"clang -std=c++17 -c " << build_file.string()
+           << "\"\\n";
     stream << "  }\\n";
     stream << "]\n";
   }

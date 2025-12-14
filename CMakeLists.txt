@@ -5,6 +5,20 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_library(
+  LIBCLANG_LIBRARY
+  NAMES clang
+  HINTS /usr/lib/llvm-18/lib /usr/lib/llvm-18/lib64 /usr/lib)
+
+find_path(
+  LIBCLANG_INCLUDE_DIR
+  clang-c/Index.h
+  HINTS /usr/lib/llvm-18/include /usr/include)
+
+if(NOT LIBCLANG_LIBRARY OR NOT LIBCLANG_INCLUDE_DIR)
+  message(FATAL_ERROR "libclang not found. Install libclang-dev.")
+endif()
+
 add_library(
   dsl_core
   src/default_components.cpp src/heuristic_dsl_extractor.cpp
@@ -27,7 +41,11 @@ target_sources(
          include/dsl/interfaces.h
          include/dsl/models.h)
 
-target_include_directories(dsl_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(
+  dsl_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE
+                   ${LIBCLANG_INCLUDE_DIR})
+
+target_link_libraries(dsl_core PRIVATE ${LIBCLANG_LIBRARY})
 
 include(FetchContent)
 FetchContent_Declare(
