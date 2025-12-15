@@ -17,8 +17,7 @@ TEST(EscapingTest, UnescapeRestoresEscapedSequences) {
 }
 
 TEST(EscapingTest, SplitEscapedHandlesLiteralTabs) {
-  const std::string line =
-      "first\tsecond\\twith\\nescaped\tthird\\\\segment";
+  const std::string line = "first\tsecond\\twith\\nescaped\tthird\\\\segment";
 
   const auto fields = dsl::SplitEscaped(line);
 

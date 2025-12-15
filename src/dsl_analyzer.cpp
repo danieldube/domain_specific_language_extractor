@@ -1,5 +1,6 @@
 #include <dsl/cli_exit_codes.h>
 #include <dsl/default_components.h>
+#include <dsl/heuristic_dsl_extractor.h>
 #include <dsl/models.h>
 
 #include <algorithm>
@@ -29,32 +30,36 @@ struct AnalyzeOptions {
 };
 
 void PrintGlobalUsage() {
-  std::cout << "Usage: dsl-extract <command> [options]\n\n"
-            << "Commands:\n"
-            << "  analyze   Run DSL analysis (default if no command is given).\n"
-            << "  report    (placeholder) Render reports from cached analysis.\n"
-            << "  cache     Manage caches (subcommands: clean).\n\n"
-            << "Run 'dsl-extract analyze --help' for analysis options.\n";
+  std::cout
+      << "Usage: dsl-extract <command> [options]\n\n"
+      << "Commands:\n"
+      << "  analyze   Run DSL analysis (default if no command is given).\n"
+      << "  report    (placeholder) Render reports from cached analysis.\n"
+      << "  cache     Manage caches (subcommands: clean).\n\n"
+      << "Run 'dsl-extract analyze --help' for analysis options.\n";
 }
 
 void PrintAnalyzeUsage() {
-  std::cout << "Usage: dsl-extract analyze --root <path> [options]\n"
-            << "Options:\n"
-            << "  --root <path>         Root directory of the CMake project\n"
-            << "  --build <path>        Build directory containing compile_commands.json\n"
-            << "                        (default: build)\n"
-            << "  --format <list>       Comma-separated list of output formats\n"
-            << "                        (supported: markdown,json)\n"
-            << "  --out <path>          Directory for report outputs (default: analysis root)\n"
-            << "  --scope-notes <text>  Scope notes to embed in the report header\n"
-            << "  --config <file>       Optional YAML/TOML config file\n"
-            << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
-            << "  --verbose             Shortcut for --log-level info\n"
-            << "  --debug               Shortcut for --log-level debug\n"
-            << "  --cache-ast           Enable AST caching\n"
-            << "  --cache-dir <path>    Override AST cache directory\n"
-            << "  --clean-cache         Remove AST cache before running\n"
-            << "  --help                Show this message\n";
+  std::cout
+      << "Usage: dsl-extract analyze --root <path> [options]\n"
+      << "Options:\n"
+      << "  --root <path>         Root directory of the CMake project\n"
+      << "  --build <path>        Build directory containing "
+         "compile_commands.json\n"
+      << "                        (default: build)\n"
+      << "  --format <list>       Comma-separated list of output formats\n"
+      << "                        (supported: markdown,json)\n"
+      << "  --out <path>          Directory for report outputs (default: "
+         "analysis root)\n"
+      << "  --scope-notes <text>  Scope notes to embed in the report header\n"
+      << "  --config <file>       Optional YAML/TOML config file\n"
+      << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
+      << "  --verbose             Shortcut for --log-level info\n"
+      << "  --debug               Shortcut for --log-level debug\n"
+      << "  --cache-ast           Enable AST caching\n"
+      << "  --cache-dir <path>    Override AST cache directory\n"
+      << "  --clean-cache         Remove AST cache before running\n"
+      << "  --help                Show this message\n";
 }
 
 std::string Trim(std::string value) {
@@ -70,9 +75,9 @@ std::string Trim(std::string value) {
 }
 
 std::string ToLower(std::string value) {
-  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-    return static_cast<char>(std::tolower(c));
-  });
+  std::transform(
+      value.begin(), value.end(), value.begin(),
+      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return value;
 }
 
@@ -131,7 +136,8 @@ void AppendFormats(const std::string &raw_formats,
   }
 }
 
-AnalyzeOptions ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
+AnalyzeOptions
+ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
   AnalyzeOptions options;
 
   for (std::size_t i = 0; i < arguments.size(); ++i) {
@@ -249,9 +255,8 @@ AnalyzeOptions ParseConfigFile(const std::filesystem::path &path) {
     if (!value.empty() && value.front() == '[' && value.back() == ']') {
       value = value.substr(1, value.size() - 2);
     }
-    if (!value.empty() &&
-        ((value.front() == '"' && value.back() == '"') ||
-         (value.front() == '\'' && value.back() == '\''))) {
+    if (!value.empty() && ((value.front() == '"' && value.back() == '"') ||
+                           (value.front() == '\'' && value.back() == '\''))) {
       value = value.substr(1, value.size() - 2);
     }
     key = ToLower(key);
@@ -344,8 +349,8 @@ dsl::AstCacheOptions BuildCacheOptions(const AnalyzeOptions &options,
   return cache_options;
 }
 
-std::filesystem::path ResolveBuildDirectory(
-    const AnalyzeOptions &options, const std::filesystem::path &root) {
+std::filesystem::path ResolveBuildDirectory(const AnalyzeOptions &options,
+                                            const std::filesystem::path &root) {
   if (options.build_directory) {
     return *options.build_directory;
   }
@@ -364,8 +369,9 @@ dsl::AnalysisConfig BuildAnalysisConfig(const AnalyzeOptions &options,
                                         std::shared_ptr<dsl::Logger> logger) {
   dsl::AnalysisConfig config;
   config.root_path = root.string();
-  config.formats = options.formats.empty() ? std::vector<std::string>{"markdown"}
-                                           : options.formats;
+  config.formats = options.formats.empty()
+                       ? std::vector<std::string>{"markdown"}
+                       : options.formats;
   config.scope_notes = options.scope_notes.value_or("");
   config.logging = BuildLoggingConfig(options);
   config.cache.enable_ast_cache = options.enable_ast_cache.value_or(false);
@@ -411,7 +417,8 @@ int RunAnalyze(const std::vector<std::string> &arguments) {
   ValidateAnalyzeOptions(merged);
 
   const auto root = std::filesystem::weakly_canonical(*merged.root);
-  const auto cache_directory = merged.cache_directory.value_or(root / ".dsl_cache");
+  const auto cache_directory =
+      merged.cache_directory.value_or(root / ".dsl_cache");
   auto logger = dsl::MakeLogger(BuildLoggingConfig(merged), std::clog);
 
   dsl::AnalyzerPipelineBuilder builder;
@@ -454,7 +461,8 @@ int RunCacheClean(const std::vector<std::string> &arguments) {
       continue;
     }
     if (arg == "--help" || arg == "-h") {
-      std::cout << "Usage: dsl-extract cache clean --root <path> [--cache-dir <path>]\n";
+      std::cout << "Usage: dsl-extract cache clean --root <path> [--cache-dir "
+                   "<path>]\n";
       return 0;
     }
     throw std::invalid_argument("Unknown cache argument: " + arg);
@@ -465,8 +473,7 @@ int RunCacheClean(const std::vector<std::string> &arguments) {
   }
 
   const auto resolved_root = std::filesystem::weakly_canonical(*root);
-  const auto cache_dir =
-      cache_directory.value_or(resolved_root / ".dsl_cache");
+  const auto cache_dir = cache_directory.value_or(resolved_root / ".dsl_cache");
   if (std::filesystem::exists(cache_dir)) {
     std::filesystem::remove_all(cache_dir);
     std::cout << "Removed cache at " << cache_dir << "\n";
@@ -481,10 +488,10 @@ int RunCacheCommand(const std::vector<std::string> &arguments) {
     std::cout << "Cache subcommand requires an action (e.g., clean).\n";
     return 1;
   }
-  const auto action = arguments.front();
+  const std::string &action = arguments.front();
   if (action == "clean") {
     const std::vector<std::string> clean_args(arguments.begin() + 1,
-                                             arguments.end());
+                                              arguments.end());
     return RunCacheClean(clean_args);
   }
   std::cout << "Unknown cache subcommand: " << action << "\n";
@@ -518,8 +525,9 @@ int main(int argc, char **argv) {
     }
 
     if (command == "report") {
-      std::cout << "Report command is not implemented yet. Run 'dsl-extract analyze' "
-                   "to generate reports.\n";
+      std::cout
+          << "Report command is not implemented yet. Run 'dsl-extract analyze' "
+             "to generate reports.\n";
       return 1;
     }
 

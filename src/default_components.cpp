@@ -2,8 +2,8 @@
 #include <dsl/heuristic_dsl_extractor.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <unordered_map>
 #include <unordered_set>
@@ -414,12 +414,10 @@ void AddPredicateFindings(const IntentAnalysisContext &context,
 
 bool HasLifecycleClosure(const std::vector<std::string> &targets,
                          const std::string &suffix) {
-  for (const auto &target : targets) {
-    if (target == "close" + suffix || target == "teardown" + suffix) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(
+      targets.begin(), targets.end(), [&](const std::string &target) {
+        return target == "close" + suffix || target == "teardown" + suffix;
+      });
 }
 
 void AddLifecycleFindings(const IntentAnalysisContext &context,
@@ -427,9 +425,8 @@ void AddLifecycleFindings(const IntentAnalysisContext &context,
   for (const auto &[caller, targets] : context.call_targets) {
     for (const auto &target : targets) {
       std::string suffix;
-      if (StartsWithInsensitive(target, "open")) {
-        suffix = target.substr(4);
-      } else if (StartsWithInsensitive(target, "init")) {
+      if (StartsWithInsensitive(target, "open") ||
+          StartsWithInsensitive(target, "init")) {
         suffix = target.substr(4);
       } else {
         continue;
@@ -540,8 +537,8 @@ DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
   components_.source_acquirer =
       components_.source_acquirer
           ? std::move(components_.source_acquirer)
-          : std::make_unique<CMakeSourceAcquirer>(std::filesystem::path("build"),
-                                                  components_.logger);
+          : std::make_unique<CMakeSourceAcquirer>(
+                std::filesystem::path("build"), components_.logger);
   components_.indexer = components_.indexer
                             ? std::move(components_.indexer)
                             : std::make_unique<CompileCommandsAstIndexer>(
@@ -583,16 +580,16 @@ PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig &config) {
                 {"file_count", std::to_string(sources.files.size())}});
 
   const auto index = indexer_->BuildIndex(sources);
-  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
-               {{"stage", "index"},
-                {"facts", std::to_string(index.facts.size())}});
+  logger_->Log(
+      LogLevel::kDebug, "pipeline.stage.complete",
+      {{"stage", "index"}, {"facts", std::to_string(index.facts.size())}});
 
   const auto extraction = extractor_->Extract(index);
-  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
-               {{"stage", "extract"},
-                {"terms", std::to_string(extraction.terms.size())},
-                {"relationships",
-                 std::to_string(extraction.relationships.size())}});
+  logger_->Log(
+      LogLevel::kDebug, "pipeline.stage.complete",
+      {{"stage", "extract"},
+       {"terms", std::to_string(extraction.terms.size())},
+       {"relationships", std::to_string(extraction.relationships.size())}});
 
   const auto coherence = analyzer_->Analyze(extraction);
   logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",

@@ -40,8 +40,8 @@ std::string BuildCacheKey(const SourceAcquisitionResult &sources,
 
 class CachingAstIndexer : public AstIndexer {
 public:
-  CachingAstIndexer(std::unique_ptr<AstIndexer> inner,
-                    AstCacheOptions options, std::shared_ptr<Logger> logger);
+  CachingAstIndexer(std::unique_ptr<AstIndexer> inner, AstCacheOptions options,
+                    std::shared_ptr<Logger> logger);
 
   AstIndex BuildIndex(const SourceAcquisitionResult &sources) override;
 

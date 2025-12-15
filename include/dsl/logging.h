@@ -18,12 +18,13 @@ struct LoggingConfig {
 class Logger {
 public:
   virtual ~Logger() = default;
-  virtual void Log(LogLevel level, std::string_view message,
-                   std::vector<std::pair<std::string, std::string>> fields =
-                       {}) = 0;
+  virtual void
+  Log(LogLevel level, std::string_view message,
+      std::vector<std::pair<std::string, std::string>> fields = {}) = 0;
   virtual LogLevel Level() const = 0;
-  bool IsEnabled(LogLevel level) const { return static_cast<int>(level) <=
-                                                static_cast<int>(Level()); }
+  bool IsEnabled(LogLevel level) const {
+    return static_cast<int>(level) <= static_cast<int>(Level());
+  }
 };
 
 class NullLogger : public Logger {

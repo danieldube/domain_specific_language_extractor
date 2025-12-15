@@ -101,8 +101,7 @@ CollectSourceFiles(const std::filesystem::path &root,
 
 CMakeSourceAcquirer::CMakeSourceAcquirer(std::filesystem::path build_directory,
                                          std::shared_ptr<Logger> logger)
-    : build_directory_(std::move(build_directory)),
-      logger_(std::move(logger)) {
+    : build_directory_(std::move(build_directory)), logger_(std::move(logger)) {
   if (!logger_) {
     logger_ = std::make_shared<NullLogger>();
   }
@@ -125,9 +124,9 @@ CMakeSourceAcquirer::Acquire(const AnalysisConfig &config) {
                              root.string());
   }
 
-  logger_->Log(LogLevel::kInfo, "Collected source files",
-               {{"count", std::to_string(files.size())},
-                {"root", root.string()}});
+  logger_->Log(
+      LogLevel::kInfo, "Collected source files",
+      {{"count", std::to_string(files.size())}, {"root", root.string()}});
 
   SourceAcquisitionResult result;
   result.files = std::move(files);

@@ -474,9 +474,10 @@ std::vector<AstFact> CollectFacts(CXTranslationUnit translation_unit,
   return collector.Collect(root);
 }
 
-std::vector<AstFact> ExtractFactsFromCommand(
-    CXIndex index, const CompileCommandEntry &entry,
-    const std::filesystem::path &project_root, Logger &logger) {
+std::vector<AstFact>
+ExtractFactsFromCommand(CXIndex index, const CompileCommandEntry &entry,
+                        const std::filesystem::path &project_root,
+                        Logger &logger) {
   const auto args = NormalizeArgs(entry);
   std::vector<const char *> arg_pointers;
   arg_pointers.reserve(args.size());
@@ -508,9 +509,9 @@ std::vector<AstFact> ExtractFactsFromCommand(
   }
 
   auto facts = CollectFacts(translation_unit, project_root);
-  logger.Log(LogLevel::kInfo, "Collected facts",
-             {{"count", std::to_string(facts.size())},
-              {"file", entry.file.string()}});
+  logger.Log(
+      LogLevel::kInfo, "Collected facts",
+      {{"count", std::to_string(facts.size())}, {"file", entry.file.string()}});
   clang_disposeTranslationUnit(translation_unit);
   return facts;
 }

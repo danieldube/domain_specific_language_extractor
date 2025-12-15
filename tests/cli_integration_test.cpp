@@ -128,12 +128,10 @@ TEST(CliIntegrationTest, UsesConfigFileAndCacheOptions) {
 
   const auto cache_dir = project.root() / "dsl-cache";
   const auto config_path = project.AddFile(
-      "dsl_config.yaml",
-      "root: " + project.root().string() + "\n" +
-          "build: " + build_directory.string() + "\n" +
-          "formats: markdown,json\n" +
-          "cache_ast: true\n" +
-          "cache_dir: " + cache_dir.string() + "\n");
+      "dsl_config.yaml", "root: " + project.root().string() + "\n" +
+                             "build: " + build_directory.string() + "\n" +
+                             "formats: markdown,json\n" + "cache_ast: true\n" +
+                             "cache_dir: " + cache_dir.string() + "\n");
 
   const auto cli = ExecutableUnderTest();
   ASSERT_TRUE(std::filesystem::exists(cli))
@@ -154,8 +152,8 @@ TEST(CliIntegrationTest, UsesConfigFileAndCacheOptions) {
   EXPECT_FALSE(std::filesystem::is_empty(cache_dir));
 
   const std::string clean_command = cli.string() + " cache clean --root " +
-                                   project.root().string() + " --cache-dir " +
-                                   cache_dir.string();
+                                    project.root().string() + " --cache-dir " +
+                                    cache_dir.string();
 
   ASSERT_EQ(ExitCode(clean_command), 0);
   EXPECT_FALSE(std::filesystem::exists(cache_dir));

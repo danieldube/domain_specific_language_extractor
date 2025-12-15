@@ -19,10 +19,15 @@ endif()
 
 add_library(
   dsl_core
-  src/ast_cache.cpp src/cli_exit_codes.cpp src/default_components.cpp
-  src/escaping.cpp src/logging.cpp src/heuristic_dsl_extractor.cpp
+  src/ast_cache.cpp
+  src/cli_exit_codes.cpp
+  src/default_components.cpp
+  src/escaping.cpp
+  src/logging.cpp
+  src/heuristic_dsl_extractor.cpp
   src/cmake_source_acquirer.cpp
-  src/markdown_reporter.cpp src/compile_commands_ast_indexer.cpp)
+  src/markdown_reporter.cpp
+  src/compile_commands_ast_indexer.cpp)
 
 add_executable(dsl_analyzer src/dsl_analyzer.cpp)
 set_target_properties(dsl_analyzer PROPERTIES OUTPUT_NAME "dsl-extract")
@@ -73,10 +78,14 @@ enable_testing()
 include(GoogleTest)
 
 set(TEST_SOURCES
-    tests/components_test.cpp tests/cmake_source_acquirer_test.cpp
-    tests/markdown_reporter_test.cpp tests/exit_code_test.cpp
-    tests/compile_commands_ast_indexer_test.cpp tests/cli_integration_test.cpp
-    tests/escaping_test.cpp tests/logging_test.cpp)
+    tests/components_test.cpp
+    tests/cmake_source_acquirer_test.cpp
+    tests/markdown_reporter_test.cpp
+    tests/exit_code_test.cpp
+    tests/compile_commands_ast_indexer_test.cpp
+    tests/cli_integration_test.cpp
+    tests/escaping_test.cpp
+    tests/logging_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})
 
 add_dependencies(dsl_tests dsl_analyzer)

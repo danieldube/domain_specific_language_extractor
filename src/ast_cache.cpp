@@ -10,8 +10,7 @@
 
 namespace {
 
-std::shared_ptr<dsl::Logger> EnsureLogger(
-    std::shared_ptr<dsl::Logger> logger) {
+std::shared_ptr<dsl::Logger> EnsureLogger(std::shared_ptr<dsl::Logger> logger) {
   if (!logger) {
     return std::make_shared<dsl::NullLogger>();
   }
@@ -62,9 +61,8 @@ bool AstCache::Load(const std::string &key, AstIndex &index) const {
                    {{"path", path.string()}});
       continue;
     }
-    cached.facts.push_back(
-        {fields[0], fields[1], fields[2], fields[3], fields[4], fields[5],
-         fields[6]});
+    cached.facts.push_back({fields[0], fields[1], fields[2], fields[3],
+                            fields[4], fields[5], fields[6]});
   }
 
   index = std::move(cached);
@@ -91,8 +89,8 @@ void AstCache::Store(const std::string &key, const AstIndex &index) const {
   for (const auto &fact : index.facts) {
     stream << Escape(fact.name) << '\t' << Escape(fact.kind) << '\t'
            << Escape(fact.source_location) << '\t' << Escape(fact.signature)
-           << '\t' << Escape(fact.descriptor) << '\t'
-           << Escape(fact.target) << '\t' << Escape(fact.range) << '\n';
+           << '\t' << Escape(fact.descriptor) << '\t' << Escape(fact.target)
+           << '\t' << Escape(fact.range) << '\n';
   }
   logger_->Log(LogLevel::kInfo, "Persisted AST cache",
                {{"path", path.string()},
@@ -138,8 +136,7 @@ CachingAstIndexer::CachingAstIndexer(std::unique_ptr<AstIndexer> inner,
     : inner_(std::move(inner)), options_(std::move(options)),
       cache_(options_, logger), logger_(EnsureLogger(std::move(logger))) {}
 
-AstIndex CachingAstIndexer::BuildIndex(
-    const SourceAcquisitionResult &sources) {
+AstIndex CachingAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
   if (options_.clean) {
     cache_.Clean();
   }

@@ -36,8 +36,8 @@ std::string Timestamp() {
   return stream.str();
 }
 
-std::string FormatFields(
-    const std::vector<std::pair<std::string, std::string>> &fields) {
+std::string
+FormatFields(const std::vector<std::pair<std::string, std::string>> &fields) {
   if (fields.empty()) {
     return "{}";
   }
@@ -47,8 +47,8 @@ std::string FormatFields(
     if (i > 0) {
       stream << ", ";
     }
-    stream << '"' << fields[i].first << '"' << ": " << '"'
-           << fields[i].second << '"';
+    stream << '"' << fields[i].first << '"' << ": " << '"' << fields[i].second
+           << '"';
   }
   stream << "}";
   return stream.str();
@@ -66,8 +66,8 @@ void StructuredLogger::Log(
   }
 
   (*stream_) << "[" << Timestamp() << "] level=" << LevelName(level)
-             << " message=\"" << message << "\" fields="
-             << FormatFields(fields) << "\n";
+             << " message=\"" << message << "\" fields=" << FormatFields(fields)
+             << "\n";
 }
 
 std::shared_ptr<Logger> EnsureLogger(std::shared_ptr<Logger> logger) {

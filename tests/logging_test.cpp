@@ -30,8 +30,7 @@ TEST(LoggingTest, FormatsFieldsAsStructuredPairs) {
 
   const auto output = stream.str();
   EXPECT_NE(std::string::npos, output.find("fields={\"stage\": \"parse\""));
-  EXPECT_NE(std::string::npos,
-            output.find("\"duration_ms\": \"42\"}"));
+  EXPECT_NE(std::string::npos, output.find("\"duration_ms\": \"42\"}"));
   EXPECT_NE(std::string::npos, output.find("message=\"operation.complete\""));
 }
 
@@ -40,8 +39,8 @@ TEST(LoggingTest, EnsureLoggerProvidesDefault) {
   EXPECT_NE(nullptr, provided);
   EXPECT_NE(nullptr, std::dynamic_pointer_cast<dsl::NullLogger>(provided));
 
-  auto custom = std::make_shared<dsl::StructuredLogger>(std::cout,
-                                                        dsl::LoggingConfig{});
+  auto custom =
+      std::make_shared<dsl::StructuredLogger>(std::cout, dsl::LoggingConfig{});
   EXPECT_EQ(custom, dsl::EnsureLogger(custom));
 }
 
