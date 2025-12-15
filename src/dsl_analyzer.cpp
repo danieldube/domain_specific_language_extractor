@@ -1,7 +1,11 @@
+#include <dsl/analyzer_pipeline_builder.h>
 #include <dsl/cli_exit_codes.h>
-#include <dsl/default_components.h>
+#include <dsl/cmake_source_acquirer.h>
+#include <dsl/compile_commands_ast_indexer.h>
 #include <dsl/heuristic_dsl_extractor.h>
+#include <dsl/markdown_reporter.h>
 #include <dsl/models.h>
+#include <dsl/rule_based_coherence_analyzer.h>
 
 #include <algorithm>
 #include <cctype>

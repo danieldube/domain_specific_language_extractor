@@ -1,6 +1,6 @@
 #include <dsl/cli_exit_codes.h>
-#include <dsl/default_components.h>
 #include <dsl/models.h>
+#include <dsl/rule_based_coherence_analyzer.h>
 
 #include <gtest/gtest.h>
 

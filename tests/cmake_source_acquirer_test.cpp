@@ -1,4 +1,4 @@
-#include <dsl/default_components.h>
+#include <dsl/cmake_source_acquirer.h>
 #include <dsl/models.h>
 
 #include <filesystem>

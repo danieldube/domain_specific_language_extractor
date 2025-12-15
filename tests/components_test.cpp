@@ -1,7 +1,8 @@
-#include <dsl/default_components.h>
+#include <dsl/analyzer_pipeline_builder.h>
 #include <dsl/heuristic_dsl_extractor.h>
 #include <dsl/interfaces.h>
 #include <dsl/models.h>
+#include <dsl/rule_based_coherence_analyzer.h>
 
 #include <algorithm>
 #include <filesystem>

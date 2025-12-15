@@ -1,4 +1,4 @@
-#include <dsl/default_components.h>
+#include <dsl/markdown_reporter.h>
 
 #include <algorithm>
 #include <chrono>
