@@ -45,6 +45,7 @@ private:
   LoggingConfig config_;
 };
 
+std::shared_ptr<Logger> EnsureLogger(std::shared_ptr<Logger> logger);
 std::shared_ptr<Logger> MakeLogger(const LoggingConfig &config,
                                    std::ostream &stream);
 

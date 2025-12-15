@@ -1,5 +1,6 @@
 #pragma once
 
+#include <dsl/ast_cache.h>
 #include <dsl/interfaces.h>
 #include <dsl/logging.h>
 
@@ -46,12 +47,6 @@ public:
 };
 
 class DefaultAnalyzerPipeline;
-
-struct AstCacheOptions {
-  bool enabled = false;
-  bool clean = false;
-  std::filesystem::path directory;
-};
 
 struct PipelineComponents {
   std::unique_ptr<SourceAcquirer> source_acquirer;

@@ -70,6 +70,13 @@ void StructuredLogger::Log(
              << FormatFields(fields) << "\n";
 }
 
+std::shared_ptr<Logger> EnsureLogger(std::shared_ptr<Logger> logger) {
+  if (!logger) {
+    return std::make_shared<NullLogger>();
+  }
+  return logger;
+}
+
 std::shared_ptr<Logger> MakeLogger(const LoggingConfig &config,
                                    std::ostream &stream) {
   return std::make_shared<StructuredLogger>(stream, config);
