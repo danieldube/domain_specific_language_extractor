@@ -99,8 +99,13 @@ CollectSourceFiles(const std::filesystem::path &root,
 }
 } // namespace
 
-CMakeSourceAcquirer::CMakeSourceAcquirer(std::filesystem::path build_directory)
-    : build_directory_(std::move(build_directory)) {}
+CMakeSourceAcquirer::CMakeSourceAcquirer(std::filesystem::path build_directory,
+                                         std::shared_ptr<Logger> logger)
+    : build_directory_(std::move(build_directory)), logger_(std::move(logger)) {
+  if (!logger_) {
+    logger_ = std::make_shared<NullLogger>();
+  }
+}
 
 SourceAcquisitionResult
 CMakeSourceAcquirer::Acquire(const AnalysisConfig &config) {
@@ -118,6 +123,10 @@ CMakeSourceAcquirer::Acquire(const AnalysisConfig &config) {
     throw std::runtime_error("No source files found under root: " +
                              root.string());
   }
+
+  logger_->Log(
+      LogLevel::kInfo, "Collected source files",
+      {{"count", std::to_string(files.size())}, {"root", root.string()}});
 
   SourceAcquisitionResult result;
   result.files = std::move(files);

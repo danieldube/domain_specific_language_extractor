@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <filesystem>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -412,12 +414,10 @@ void AddPredicateFindings(const IntentAnalysisContext &context,
 
 bool HasLifecycleClosure(const std::vector<std::string> &targets,
                          const std::string &suffix) {
-  for (const auto &target : targets) {
-    if (target == "close" + suffix || target == "teardown" + suffix) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(
+      targets.begin(), targets.end(), [&](const std::string &target) {
+        return target == "close" + suffix || target == "teardown" + suffix;
+      });
 }
 
 void AddLifecycleFindings(const IntentAnalysisContext &context,
@@ -425,9 +425,8 @@ void AddLifecycleFindings(const IntentAnalysisContext &context,
   for (const auto &[caller, targets] : context.call_targets) {
     for (const auto &target : targets) {
       std::string suffix;
-      if (StartsWithInsensitive(target, "open")) {
-        suffix = target.substr(4);
-      } else if (StartsWithInsensitive(target, "init")) {
+      if (StartsWithInsensitive(target, "open") ||
+          StartsWithInsensitive(target, "init")) {
         suffix = target.substr(4);
       } else {
         continue;
@@ -480,8 +479,11 @@ RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
 }
 AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
   AnalyzerPipelineBuilder builder;
-  builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>());
-  builder.WithIndexer(std::make_unique<CompileCommandsAstIndexer>());
+  builder.WithLogger(std::make_shared<NullLogger>());
+  builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>(
+      std::filesystem::path("build"), builder.components_.logger));
+  builder.WithIndexer(std::make_unique<CompileCommandsAstIndexer>(
+      std::filesystem::path{}, builder.components_.logger));
   builder.WithExtractor(std::make_unique<HeuristicDslExtractor>());
   builder.WithAnalyzer(std::make_unique<RuleBasedCoherenceAnalyzer>());
   builder.WithReporter(std::make_unique<MarkdownReporter>());
@@ -518,12 +520,29 @@ AnalyzerPipelineBuilder::WithReporter(std::unique_ptr<Reporter> reporter) {
   return *this;
 }
 
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithLogger(std::shared_ptr<Logger> logger) {
+  components_.logger = std::move(logger);
+  return *this;
+}
+
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithAstCacheOptions(AstCacheOptions options) {
+  components_.ast_cache = std::move(options);
+  return *this;
+}
+
 DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
+  components_.logger = EnsureLogger(std::move(components_.logger));
   components_.source_acquirer =
-      EnsureComponent<SourceAcquirer, CMakeSourceAcquirer>(
-          std::move(components_.source_acquirer));
-  components_.indexer = EnsureComponent<AstIndexer, CompileCommandsAstIndexer>(
-      std::move(components_.indexer));
+      components_.source_acquirer
+          ? std::move(components_.source_acquirer)
+          : std::make_unique<CMakeSourceAcquirer>(
+                std::filesystem::path("build"), components_.logger);
+  components_.indexer = components_.indexer
+                            ? std::move(components_.indexer)
+                            : std::make_unique<CompileCommandsAstIndexer>(
+                                  std::filesystem::path{}, components_.logger);
   components_.extractor = EnsureComponent<DslExtractor, HeuristicDslExtractor>(
       std::move(components_.extractor));
   components_.analyzer =
@@ -531,6 +550,12 @@ DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
           std::move(components_.analyzer));
   components_.reporter = EnsureComponent<Reporter, MarkdownReporter>(
       std::move(components_.reporter));
+
+  if (components_.ast_cache.enabled || components_.ast_cache.clean) {
+    components_.indexer = std::make_unique<CachingAstIndexer>(
+        std::move(components_.indexer), components_.ast_cache,
+        components_.logger);
+  }
   return DefaultAnalyzerPipeline(std::move(components_));
 }
 
@@ -539,14 +564,47 @@ DefaultAnalyzerPipeline::DefaultAnalyzerPipeline(PipelineComponents components)
       indexer_(std::move(components.indexer)),
       extractor_(std::move(components.extractor)),
       analyzer_(std::move(components.analyzer)),
-      reporter_(std::move(components.reporter)) {}
+      reporter_(std::move(components.reporter)),
+      logger_(EnsureLogger(std::move(components.logger))),
+      ast_cache_(std::move(components.ast_cache)) {}
 
 PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig &config) {
+  logger_->Log(LogLevel::kInfo, "pipeline.start",
+               {{"root", config.root_path},
+                {"formats", std::to_string(config.formats.size())}});
+
+  const auto pipeline_start = std::chrono::steady_clock::now();
   const auto sources = source_acquirer_->Acquire(config);
+  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
+               {{"stage", "source"},
+                {"file_count", std::to_string(sources.files.size())}});
+
   const auto index = indexer_->BuildIndex(sources);
+  logger_->Log(
+      LogLevel::kDebug, "pipeline.stage.complete",
+      {{"stage", "index"}, {"facts", std::to_string(index.facts.size())}});
+
   const auto extraction = extractor_->Extract(index);
+  logger_->Log(
+      LogLevel::kDebug, "pipeline.stage.complete",
+      {{"stage", "extract"},
+       {"terms", std::to_string(extraction.terms.size())},
+       {"relationships", std::to_string(extraction.relationships.size())}});
+
   const auto coherence = analyzer_->Analyze(extraction);
+  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
+               {{"stage", "analyze"},
+                {"findings", std::to_string(coherence.findings.size())}});
+
   const auto report = reporter_->Render(extraction, coherence, config);
+
+  const auto duration_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - pipeline_start)
+          .count();
+  logger_->Log(LogLevel::kInfo, "pipeline.complete",
+               {{"duration_ms", std::to_string(duration_ms)},
+                {"findings", std::to_string(coherence.findings.size())}});
 
   return PipelineResult{report, coherence, extraction};
 }

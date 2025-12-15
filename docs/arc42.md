@@ -58,7 +58,9 @@
 - **Fact sources:** relies on the AST index for symbol definitions, control-flow summaries (mutations, returns, exceptions), call graph edges, and basic type info to run the rules deterministically.
 
 ### 5.2 Data Structures
-- **AnalysisConfig:** provides `root_path` and preferred output `formats` for analysis tooling.
+- **AnalysisConfig:** provides `root_path`, preferred output `formats`, optional
+  `scope_notes`, structured `logging` config, AST cache preferences, and an
+  injectable logger for stage-level observability.
 - **SourceAcquisitionResult:** normalized `files` list (deduplicated, sorted) and a normalized `project_root` shared across pipeline stages.
 - **AST Fact Model:** normalized representation of declarations, definitions, symbol references, and comments.
 - **DSL Term Model:** typed objects for entities, actions, relationships, and provenance metadata (file, line, symbol origin).
@@ -101,7 +103,7 @@
   - **Developer machines:** Linux and Windows with local clang toolchain; optional cache directory per repo.
   - **CI agents:** run CLI in build pipelines; artifacts (JSON/Markdown) stored as pipeline outputs.
 - **Configuration:** paths to toolchain and include directories provided via CLI args or config file.
-- **Data:** optional on-disk cache for AST facts stored under project `.dsl-cache/` to speed reruns; cleaned via CLI command.
+- **Data:** optional on-disk cache for AST facts stored under project `.dsl_cache/` to speed reruns; cleaned via CLI command.
 - Deployment diagram available at `docs/diagrams/arc42-section7-deployment.puml`.
 
 ## 8. Crosscutting Concepts
