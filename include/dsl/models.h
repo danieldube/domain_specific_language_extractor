@@ -1,5 +1,8 @@
 #pragma once
 
+#include <dsl/logging.h>
+
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -9,6 +12,14 @@ struct AnalysisConfig {
   std::string root_path;
   std::vector<std::string> formats;
   std::string scope_notes;
+  LoggingConfig logging;
+  struct CacheConfig {
+    bool enable_ast_cache = false;
+    bool clean = false;
+    std::string directory;
+  } cache;
+  std::shared_ptr<Logger> logger;
+  std::string config_file;
 };
 
 struct SourceAcquisitionResult {

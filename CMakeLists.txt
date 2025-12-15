@@ -19,7 +19,7 @@ endif()
 
 add_library(
   dsl_core
-  src/cli_exit_codes.cpp src/default_components.cpp
+  src/cli_exit_codes.cpp src/default_components.cpp src/logging.cpp
   src/heuristic_dsl_extractor.cpp src/cmake_source_acquirer.cpp
   src/markdown_reporter.cpp src/compile_commands_ast_indexer.cpp)
 
@@ -46,6 +46,7 @@ target_sources(
          ${CMAKE_CURRENT_SOURCE_DIR}/include
          FILES
          include/dsl/default_components.h
+         include/dsl/logging.h
          include/dsl/cli_exit_codes.h
          include/dsl/heuristic_dsl_extractor.h
          include/dsl/interfaces.h

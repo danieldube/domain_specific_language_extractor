@@ -6,7 +6,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <optional>
 #include <regex>
 #include <set>
@@ -35,13 +34,6 @@ std::string Join(const std::vector<std::string> &values,
     stream << values[i];
   }
   return stream.str();
-}
-
-void DebugLog(const std::string &message) {
-  if (std::getenv("DSL_DEBUG_INDEXER") == nullptr) {
-    return;
-  }
-  std::cerr << message << std::endl;
 }
 
 std::string ToString(CXString value) {
@@ -482,9 +474,9 @@ std::vector<AstFact> CollectFacts(CXTranslationUnit translation_unit,
   return collector.Collect(root);
 }
 
-std::vector<AstFact>
-ExtractFactsFromCommand(CXIndex index, const CompileCommandEntry &entry,
-                        const std::filesystem::path &project_root) {
+std::vector<AstFact> ExtractFactsFromCommand(
+    CXIndex index, const CompileCommandEntry &entry,
+    const std::filesystem::path &project_root, Logger &logger) {
   const auto args = NormalizeArgs(entry);
   std::vector<const char *> arg_pointers;
   arg_pointers.reserve(args.size());
@@ -497,29 +489,28 @@ ExtractFactsFromCommand(CXIndex index, const CompileCommandEntry &entry,
       index, entry.file.string().c_str(), arg_pointers.data(),
       static_cast<int>(arg_pointers.size()), nullptr, 0, CXTranslationUnit_None,
       &translation_unit);
-  DebugLog("parsing " + entry.file.string() + " with args [" +
-           Join(args, ", ") + "] result code " + std::to_string(error));
+  logger.Log(LogLevel::kDebug, "Parsing translation unit",
+             {{"file", entry.file.string()},
+              {"arg_count", std::to_string(args.size())},
+              {"result", std::to_string(error)}});
 
   if (error != CXError_Success || translation_unit == nullptr) {
     const char *fallback_args[] = {"-std=c++17", entry.file.string().c_str()};
     const auto fallback_error = clang_parseTranslationUnit2(
         index, entry.file.string().c_str(), fallback_args, 2, nullptr, 0,
         CXTranslationUnit_None, &translation_unit);
-    DebugLog("fallback parsing " + entry.file.string() + " result code " +
-             std::to_string(fallback_error));
+    logger.Log(LogLevel::kWarn, "Fallback parse invoked",
+               {{"file", entry.file.string()},
+                {"result", std::to_string(fallback_error)}});
     if (fallback_error != CXError_Success || translation_unit == nullptr) {
       return {};
     }
   }
 
   auto facts = CollectFacts(translation_unit, project_root);
-  DebugLog("collected " + std::to_string(facts.size()) + " facts from " +
-           entry.file.string());
-  for (const auto &fact : facts) {
-    DebugLog("fact => name:" + fact.name + " kind:" + fact.kind +
-             " target:" + fact.target + " signature:" + fact.signature +
-             " location:" + fact.source_location);
-  }
+  logger.Log(LogLevel::kInfo, "Collected facts",
+             {{"count", std::to_string(facts.size())},
+              {"file", entry.file.string()}});
   clang_disposeTranslationUnit(translation_unit);
   return facts;
 }
@@ -688,8 +679,13 @@ BuildFallbackCommands(const SourceAcquisitionResult &sources,
 } // namespace
 
 CompileCommandsAstIndexer::CompileCommandsAstIndexer(
-    std::filesystem::path compile_commands_path)
-    : compile_commands_path_(std::move(compile_commands_path)) {}
+    std::filesystem::path compile_commands_path, std::shared_ptr<Logger> logger)
+    : compile_commands_path_(std::move(compile_commands_path)),
+      logger_(std::move(logger)) {
+  if (!logger_) {
+    logger_ = std::make_shared<NullLogger>();
+  }
+}
 
 AstIndex
 CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
@@ -714,8 +710,9 @@ CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
     compile_commands =
         BuildFallbackCommands(sources, project_root, build_directory);
   }
-  DebugLog("compile commands entries: " +
-           std::to_string(compile_commands.size()));
+  logger_->Log(LogLevel::kInfo, "Loaded compile commands",
+               {{"entries", std::to_string(compile_commands.size())},
+                {"path", compile_commands_path.string()}});
 
   AstIndex index;
   std::unordered_set<std::string> seen_facts;
@@ -726,11 +723,8 @@ CompileCommandsAstIndexer::BuildIndex(const SourceAcquisitionResult &sources) {
       continue;
     }
 
-    DebugLog("command args for " + entry.file.string() + " -> [" +
-             Join(entry.args, ", ") + "]");
-
     for (auto &fact :
-         ExtractFactsFromCommand(clang_index, entry, project_root)) {
+         ExtractFactsFromCommand(clang_index, entry, project_root, *logger_)) {
       const auto fingerprint = fact.name + "|" + fact.kind + "|" + fact.target +
                                "|" + fact.source_location;
       if (seen_facts.insert(fingerprint).second) {

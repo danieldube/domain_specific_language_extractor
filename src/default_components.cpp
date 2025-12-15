@@ -2,11 +2,16 @@
 #include <dsl/heuristic_dsl_extractor.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cctype>
+#include <clang-c/Index.h>
+#include <filesystem>
+#include <fstream>
 #include <unordered_map>
 #include <unordered_set>
 
 #include <memory>
+#include <sstream>
 #include <utility>
 
 namespace {
@@ -453,6 +458,228 @@ void AddLifecycleFindings(const IntentAnalysisContext &context,
   }
 }
 
+std::shared_ptr<Logger> EnsureLogger(std::shared_ptr<Logger> logger) {
+  if (!logger) {
+    return std::make_shared<NullLogger>();
+  }
+  return logger;
+}
+
+std::filesystem::path ResolveCacheDirectory(const AstCacheOptions &options) {
+  if (!options.directory.empty()) {
+    return std::filesystem::weakly_canonical(options.directory);
+  }
+  return std::filesystem::weakly_canonical(std::filesystem::current_path() /
+                                           ".dsl_cache");
+}
+
+std::string Escape(const std::string &value) {
+  std::string escaped;
+  escaped.reserve(value.size());
+  for (const auto character : value) {
+    if (character == '\\' || character == '\t' || character == '\n') {
+      escaped.push_back('\\');
+      if (character == '\t') {
+        escaped.push_back('t');
+        continue;
+      }
+      if (character == '\n') {
+        escaped.push_back('n');
+        continue;
+      }
+    }
+    escaped.push_back(character);
+  }
+  return escaped;
+}
+
+std::string Unescape(const std::string &value) {
+  std::string unescaped;
+  unescaped.reserve(value.size());
+  for (std::size_t i = 0; i < value.size(); ++i) {
+    if (value[i] == '\\' && i + 1 < value.size()) {
+      const auto next = value[i + 1];
+      if (next == 't') {
+        unescaped.push_back('\t');
+        ++i;
+        continue;
+      }
+      if (next == 'n') {
+        unescaped.push_back('\n');
+        ++i;
+        continue;
+      }
+      unescaped.push_back(next);
+      ++i;
+      continue;
+    }
+    unescaped.push_back(value[i]);
+  }
+  return unescaped;
+}
+
+std::vector<std::string> SplitEscaped(const std::string &line) {
+  std::vector<std::string> fields;
+  std::string current;
+  for (std::size_t i = 0; i < line.size(); ++i) {
+    if (line[i] == '\t') {
+      fields.push_back(Unescape(current));
+      current.clear();
+      continue;
+    }
+    current.push_back(line[i]);
+  }
+  fields.push_back(Unescape(current));
+  return fields;
+}
+
+class AstCache {
+public:
+  AstCache(AstCacheOptions options, std::shared_ptr<Logger> logger)
+      : options_(std::move(options)), directory_(ResolveCacheDirectory(options_)),
+        logger_(EnsureLogger(std::move(logger))) {}
+
+  bool Load(const std::string &key, AstIndex &index) const {
+    if (!options_.enabled) {
+      return false;
+    }
+    const auto path = CachePath(key);
+    if (!std::filesystem::exists(path)) {
+      return false;
+    }
+
+    std::ifstream stream(path);
+    if (!stream) {
+      logger_->Log(LogLevel::kWarn, "Failed to open AST cache",
+                   {{"path", path.string()}});
+      return false;
+    }
+
+    std::string line;
+    AstIndex cached;
+    while (std::getline(stream, line)) {
+      if (line.empty() || line[0] == '#') {
+        continue;
+      }
+      auto fields = SplitEscaped(line);
+      if (fields.size() != 7) {
+        logger_->Log(LogLevel::kWarn, "Ignoring malformed cache line",
+                     {{"path", path.string()}});
+        continue;
+      }
+      cached.facts.push_back({fields[0], fields[1], fields[2], fields[3],
+                              fields[4], fields[5], fields[6]});
+    }
+
+    index = std::move(cached);
+    logger_->Log(LogLevel::kInfo, "Loaded AST facts from cache",
+                 {{"path", path.string()},
+                  {"fact_count", std::to_string(index.facts.size())}});
+    return true;
+  }
+
+  void Store(const std::string &key, const AstIndex &index) const {
+    if (!options_.enabled) {
+      return;
+    }
+    const auto path = CachePath(key);
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream stream(path, std::ios::trunc);
+    if (!stream) {
+      logger_->Log(LogLevel::kWarn, "Failed to write AST cache",
+                   {{"path", path.string()}});
+      return;
+    }
+
+    stream << "# toolchain cache entry\n";
+    for (const auto &fact : index.facts) {
+      stream << Escape(fact.name) << '\t' << Escape(fact.kind) << '\t'
+             << Escape(fact.source_location) << '\t' << Escape(fact.signature)
+             << '\t' << Escape(fact.descriptor) << '\t'
+             << Escape(fact.target) << '\t' << Escape(fact.range) << '\n';
+    }
+    logger_->Log(LogLevel::kInfo, "Persisted AST cache",
+                 {{"path", path.string()},
+                  {"fact_count", std::to_string(index.facts.size())}});
+  }
+
+  void Clean() const {
+    if (std::filesystem::exists(directory_)) {
+      std::filesystem::remove_all(directory_);
+      logger_->Log(LogLevel::kInfo, "Cleared AST cache",
+                   {{"directory", directory_.string()}});
+    }
+  }
+
+private:
+  std::filesystem::path CachePath(const std::string &key) const {
+    return directory_ / ("ast_cache_" + key + ".dat");
+  }
+
+  AstCacheOptions options_;
+  std::filesystem::path directory_;
+  std::shared_ptr<Logger> logger_;
+};
+
+std::string ToolchainVersion() {
+  const auto version = clang_getClangVersion();
+  std::string text;
+  if (const auto *cstr = clang_getCString(version); cstr != nullptr) {
+    text = cstr;
+  }
+  clang_disposeString(version);
+  return text;
+}
+
+std::string BuildCacheKey(const SourceAcquisitionResult &sources,
+                          const std::string &toolchain_version) {
+  std::string accumulator = toolchain_version;
+  accumulator.append(sources.project_root);
+  accumulator.append(sources.build_directory);
+  for (const auto &file : sources.files) {
+    accumulator.append(file);
+  }
+  return std::to_string(std::hash<std::string>{}(accumulator));
+}
+
+class CachingAstIndexer : public AstIndexer {
+public:
+  CachingAstIndexer(std::unique_ptr<AstIndexer> inner,
+                    AstCacheOptions options, std::shared_ptr<Logger> logger)
+      : inner_(std::move(inner)), options_(std::move(options)),
+        cache_(options_, logger), logger_(EnsureLogger(std::move(logger))) {}
+
+  AstIndex BuildIndex(const SourceAcquisitionResult &sources) override {
+    if (options_.clean) {
+      cache_.Clean();
+    }
+    if (!options_.enabled) {
+      return inner_->BuildIndex(sources);
+    }
+
+    const auto version = ToolchainVersion();
+    const auto key = BuildCacheKey(sources, version);
+    AstIndex index;
+    if (cache_.Load(key, index)) {
+      logger_->Log(LogLevel::kInfo, "AST cache hit",
+                   {{"key", key}, {"toolchain", version}});
+      return index;
+    }
+
+    logger_->Log(LogLevel::kInfo, "AST cache miss",
+                 {{"key", key}, {"toolchain", version}});
+    index = inner_->BuildIndex(sources);
+    cache_.Store(key, index);
+    return index;
+  }
+
+private:
+  std::unique_ptr<AstIndexer> inner_;
+  AstCacheOptions options_;
+  AstCache cache_;
+  std::shared_ptr<Logger> logger_;
+};
+
 } // namespace
 
 namespace dsl {
@@ -480,8 +707,11 @@ RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
 }
 AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
   AnalyzerPipelineBuilder builder;
-  builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>());
-  builder.WithIndexer(std::make_unique<CompileCommandsAstIndexer>());
+  builder.WithLogger(std::make_shared<NullLogger>());
+  builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>(
+      std::filesystem::path("build"), builder.components_.logger));
+  builder.WithIndexer(std::make_unique<CompileCommandsAstIndexer>(
+      std::filesystem::path{}, builder.components_.logger));
   builder.WithExtractor(std::make_unique<HeuristicDslExtractor>());
   builder.WithAnalyzer(std::make_unique<RuleBasedCoherenceAnalyzer>());
   builder.WithReporter(std::make_unique<MarkdownReporter>());
@@ -518,12 +748,29 @@ AnalyzerPipelineBuilder::WithReporter(std::unique_ptr<Reporter> reporter) {
   return *this;
 }
 
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithLogger(std::shared_ptr<Logger> logger) {
+  components_.logger = std::move(logger);
+  return *this;
+}
+
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithAstCacheOptions(AstCacheOptions options) {
+  components_.ast_cache = std::move(options);
+  return *this;
+}
+
 DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
+  components_.logger = EnsureLogger(std::move(components_.logger));
   components_.source_acquirer =
-      EnsureComponent<SourceAcquirer, CMakeSourceAcquirer>(
-          std::move(components_.source_acquirer));
-  components_.indexer = EnsureComponent<AstIndexer, CompileCommandsAstIndexer>(
-      std::move(components_.indexer));
+      components_.source_acquirer
+          ? std::move(components_.source_acquirer)
+          : std::make_unique<CMakeSourceAcquirer>(std::filesystem::path("build"),
+                                                  components_.logger);
+  components_.indexer = components_.indexer
+                            ? std::move(components_.indexer)
+                            : std::make_unique<CompileCommandsAstIndexer>(
+                                  std::filesystem::path{}, components_.logger);
   components_.extractor = EnsureComponent<DslExtractor, HeuristicDslExtractor>(
       std::move(components_.extractor));
   components_.analyzer =
@@ -531,6 +778,12 @@ DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
           std::move(components_.analyzer));
   components_.reporter = EnsureComponent<Reporter, MarkdownReporter>(
       std::move(components_.reporter));
+
+  if (components_.ast_cache.enabled || components_.ast_cache.clean) {
+    components_.indexer = std::make_unique<CachingAstIndexer>(
+        std::move(components_.indexer), components_.ast_cache,
+        components_.logger);
+  }
   return DefaultAnalyzerPipeline(std::move(components_));
 }
 
@@ -539,14 +792,47 @@ DefaultAnalyzerPipeline::DefaultAnalyzerPipeline(PipelineComponents components)
       indexer_(std::move(components.indexer)),
       extractor_(std::move(components.extractor)),
       analyzer_(std::move(components.analyzer)),
-      reporter_(std::move(components.reporter)) {}
+      reporter_(std::move(components.reporter)),
+      logger_(EnsureLogger(std::move(components.logger))),
+      ast_cache_(std::move(components.ast_cache)) {}
 
 PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig &config) {
+  logger_->Log(LogLevel::kInfo, "pipeline.start",
+               {{"root", config.root_path},
+                {"formats", std::to_string(config.formats.size())}});
+
+  const auto pipeline_start = std::chrono::steady_clock::now();
   const auto sources = source_acquirer_->Acquire(config);
+  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
+               {{"stage", "source"},
+                {"file_count", std::to_string(sources.files.size())}});
+
   const auto index = indexer_->BuildIndex(sources);
+  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
+               {{"stage", "index"},
+                {"facts", std::to_string(index.facts.size())}});
+
   const auto extraction = extractor_->Extract(index);
+  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
+               {{"stage", "extract"},
+                {"terms", std::to_string(extraction.terms.size())},
+                {"relationships",
+                 std::to_string(extraction.relationships.size())}});
+
   const auto coherence = analyzer_->Analyze(extraction);
+  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
+               {{"stage", "analyze"},
+                {"findings", std::to_string(coherence.findings.size())}});
+
   const auto report = reporter_->Render(extraction, coherence, config);
+
+  const auto duration_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - pipeline_start)
+          .count();
+  logger_->Log(LogLevel::kInfo, "pipeline.complete",
+               {{"duration_ms", std::to_string(duration_ms)},
+                {"findings", std::to_string(coherence.findings.size())}});
 
   return PipelineResult{report, coherence, extraction};
 }

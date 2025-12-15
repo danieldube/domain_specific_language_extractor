@@ -115,5 +115,51 @@ TEST(CliIntegrationTest, DefaultsMirrorLegacyBehavior) {
   EXPECT_THAT(LoadFile(markdown_report).size(), Gt<std::size_t>(0));
 }
 
+TEST(CliIntegrationTest, UsesConfigFileAndCacheOptions) {
+  test::TemporaryProject project;
+  const auto cmake_lists = project.AddFile(
+      "CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\nproject(sample "
+                        "CXX)\nadd_library(sample src/example.cpp)\n");
+  (void)cmake_lists;
+  const auto source_path =
+      project.AddFile("src/example.cpp", "int Example() { return 42; }\n");
+  const auto build_directory = project.root() / "build";
+  WriteCompileCommands(build_directory, source_path);
+
+  const auto cache_dir = project.root() / "dsl-cache";
+  const auto config_path = project.AddFile(
+      "dsl_config.yaml",
+      "root: " + project.root().string() + "\n" +
+          "build: " + build_directory.string() + "\n" +
+          "formats: markdown,json\n" +
+          "cache_ast: true\n" +
+          "cache_dir: " + cache_dir.string() + "\n");
+
+  const auto cli = ExecutableUnderTest();
+  ASSERT_TRUE(std::filesystem::exists(cli))
+      << "Expected CLI executable at " << cli;
+
+  const std::string command =
+      cli.string() + " analyze --config " + config_path.string();
+
+  ASSERT_EQ(ExitCode(command), 2);
+
+  const auto markdown_report = project.root() / "dsl_report.md";
+  const auto json_report = project.root() / "dsl_report.json";
+
+  ASSERT_TRUE(std::filesystem::exists(markdown_report));
+  ASSERT_TRUE(std::filesystem::exists(json_report));
+  EXPECT_THAT(LoadFile(markdown_report).size(), Gt<std::size_t>(0));
+  EXPECT_TRUE(std::filesystem::exists(cache_dir));
+  EXPECT_FALSE(std::filesystem::is_empty(cache_dir));
+
+  const std::string clean_command = cli.string() + " cache clean --root " +
+                                   project.root().string() + " --cache-dir " +
+                                   cache_dir.string();
+
+  ASSERT_EQ(ExitCode(clean_command), 0);
+  EXPECT_FALSE(std::filesystem::exists(cache_dir));
+}
+
 } // namespace
 } // namespace dsl

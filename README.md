@@ -18,15 +18,23 @@ defaults to that behavior when no subcommand is provided:
 
 ```
 dsl-extract analyze --root <path> [--build <dir>] [--format markdown,json] \
-  [--out <dir>] [--scope-notes <text>]
+  [--out <dir>] [--scope-notes <text>] [--config config.yaml] \
+  [--log-level error|warn|info|debug] [--cache-ast] [--cache-dir <dir>] \
+  [--clean-cache]
 ```
 
+- `--config` loads YAML/TOML settings (CLI flags override file values). Supply
+  `root`, `build`, `formats`, `cache_ast`, `cache_dir`, `clean_cache`, and
+  `log_level` keys to mirror the CLI.
+- `--log-level`, `--verbose`, or `--debug` control structured logging emitted
+  per pipeline stage. Defaults to warnings only.
+- `--cache-ast` enables the AST cache keyed by toolchain/version and source
+  hash; `--clean-cache` clears the cache before indexing, and
+  `dsl-extract cache clean` removes the cache on demand.
 - `--out` directs report outputs to a specific directory; omit it to keep the
   legacy behavior of writing under the analysis root.
 - `--format` accepts a comma-separated list (supported: `markdown`, `json`),
   defaulting to Markdown only when unspecified.
-- Placeholder commands (`report`, `cache clean`) are reserved for future
-  extensions and currently emit guidance via the CLI help text.
 - Exit codes: `0` when analysis finishes without coherence findings, `2` when
   incoherence findings are present, and `1` for fatal errors such as missing
   inputs or unsupported commands.
