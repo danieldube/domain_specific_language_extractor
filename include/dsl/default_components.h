@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dsl/analyzer_pipeline_builder.h>
+#include <dsl/component_registry.h>
 #include <dsl/caching_ast_indexer.h>
 #include <dsl/cmake_source_acquirer.h>
 #include <dsl/compile_commands_ast_indexer.h>

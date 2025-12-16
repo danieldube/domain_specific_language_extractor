@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dsl/ast_cache.h>
+#include <dsl/component_registry.h>
 #include <dsl/interfaces.h>
 #include <dsl/logging.h>
 
@@ -22,6 +23,9 @@ struct PipelineComponents {
 
 class AnalyzerPipelineBuilder {
 public:
+  explicit AnalyzerPipelineBuilder(
+      const ComponentRegistry &registry = GlobalComponentRegistry());
+
   AnalyzerPipelineBuilder &
   WithSourceAcquirer(std::unique_ptr<SourceAcquirer> source_acquirer);
   AnalyzerPipelineBuilder &WithIndexer(std::unique_ptr<AstIndexer> indexer);
@@ -32,12 +36,21 @@ public:
   AnalyzerPipelineBuilder &WithReporter(std::unique_ptr<Reporter> reporter);
   AnalyzerPipelineBuilder &WithLogger(std::shared_ptr<Logger> logger);
   AnalyzerPipelineBuilder &WithAstCacheOptions(AstCacheOptions options);
+  AnalyzerPipelineBuilder &WithExtractorName(std::string name);
+  AnalyzerPipelineBuilder &WithAnalyzerName(std::string name);
+  AnalyzerPipelineBuilder &WithReporterName(std::string name);
 
   DefaultAnalyzerPipeline Build();
 
   static AnalyzerPipelineBuilder WithDefaults();
 
 private:
+  const ComponentRegistry *registry_;
+  struct ComponentSelections {
+    std::string extractor;
+    std::string analyzer;
+    std::string reporter;
+  } selections_;
   PipelineComponents components_;
 };
 
