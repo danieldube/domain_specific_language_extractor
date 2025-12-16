@@ -16,8 +16,8 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Contains;
-using ::testing::Field;
 using ::testing::Eq;
+using ::testing::Field;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
@@ -129,15 +129,14 @@ TEST(CompileCommandsAstIndexerTest, EmitsRelationshipFactsAndMetadata) {
   CompileCommandsAstIndexer indexer;
   const auto index = indexer.BuildIndex(sources);
 
-  EXPECT_THAT(
-      index.facts,
-      Contains(AllOf(Field(&AstFact::kind, "call"),
-                     Field(&AstFact::name, HasSubstr("Use")),
-                     Field(&AstFact::target, HasSubstr("Add")),
-                     Field(&AstFact::signature, HasSubstr("int Add")),
-                     Field(&AstFact::subject_in_project, true),
-                     Field(&AstFact::target_scope,
-                           Eq(AstFact::TargetScope::kInProject)))));
+  EXPECT_THAT(index.facts,
+              Contains(AllOf(Field(&AstFact::kind, "call"),
+                             Field(&AstFact::name, HasSubstr("Use")),
+                             Field(&AstFact::target, HasSubstr("Add")),
+                             Field(&AstFact::signature, HasSubstr("int Add")),
+                             Field(&AstFact::subject_in_project, true),
+                             Field(&AstFact::target_scope,
+                                   Eq(AstFact::TargetScope::kInProject)))));
   EXPECT_THAT(
       index.facts,
       Contains(AllOf(Field(&AstFact::kind, "type_usage"),
@@ -147,14 +146,14 @@ TEST(CompileCommandsAstIndexerTest, EmitsRelationshipFactsAndMetadata) {
                      Field(&AstFact::subject_in_project, true),
                      Field(&AstFact::target_scope,
                            Eq(AstFact::TargetScope::kInProject)))));
-  EXPECT_THAT(index.facts,
-              Contains(AllOf(Field(&AstFact::kind, "owns"),
-                             Field(&AstFact::name, "Widget"),
-                             Field(&AstFact::target, "int"),
-                             Field(&AstFact::descriptor, HasSubstr("value")),
-                             Field(&AstFact::subject_in_project, true),
-                             Field(&AstFact::target_scope,
-                                   Eq(AstFact::TargetScope::kUnknown)))));
+  EXPECT_THAT(
+      index.facts,
+      Contains(AllOf(
+          Field(&AstFact::kind, "owns"), Field(&AstFact::name, "Widget"),
+          Field(&AstFact::target, "int"),
+          Field(&AstFact::descriptor, HasSubstr("value")),
+          Field(&AstFact::subject_in_project, true),
+          Field(&AstFact::target_scope, Eq(AstFact::TargetScope::kUnknown)))));
 }
 
 TEST(CompileCommandsAstIndexerTest, SkipsBuildDirectoryEntries) {

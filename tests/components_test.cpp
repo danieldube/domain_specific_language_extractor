@@ -41,8 +41,9 @@ TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
   };
   for (auto &fact : index.facts) {
     fact.subject_in_project = true;
-    if (fact.kind == "call" || fact.kind == "type_usage" || fact.kind == "owns" ||
-        fact.kind == "reference" || fact.kind == "alias") {
+    if (fact.kind == "call" || fact.kind == "type_usage" ||
+        fact.kind == "owns" || fact.kind == "reference" ||
+        fact.kind == "alias") {
       fact.target_scope = AstFact::TargetScope::kInProject;
     }
   }

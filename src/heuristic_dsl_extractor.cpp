@@ -300,8 +300,7 @@ void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
                         TermMap &external_dependencies) {
   TrackExternalDependency(fact, external_dependencies);
   const auto parsed = ParseKind(fact);
-  if (!scope_filter.SubjectInScope(fact) &&
-      !IsSymbolReference(parsed)) {
+  if (!scope_filter.SubjectInScope(fact) && !IsSymbolReference(parsed)) {
     return;
   }
   if (IsSymbolReference(parsed) && parsed.relationship_target.has_value()) {

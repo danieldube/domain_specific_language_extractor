@@ -7,8 +7,8 @@
 namespace dsl {
 namespace {
 
-using ::testing::Contains;
 using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Field;
 using ::testing::Not;
@@ -51,15 +51,14 @@ TEST(HeuristicDslExtractorTest, SkipsExternalTargetsAndCollectsDependencies) {
   index.facts.push_back(MakeDefinition("Foo", "function", "int Foo()"));
   index.facts.push_back(MakeDefinition("Bar", "function", "int Bar()"));
   index.facts.push_back(MakeRelationshipFact("Foo", "call", "Bar",
-                                            AstFact::TargetScope::kInProject,
-                                            "int Bar()", "calls Bar"));
+                                             AstFact::TargetScope::kInProject,
+                                             "int Bar()", "calls Bar"));
+  index.facts.push_back(MakeRelationshipFact("Foo", "call", "std::sort",
+                                             AstFact::TargetScope::kExternal,
+                                             "std::sort", "calls std::sort"));
   index.facts.push_back(MakeRelationshipFact(
-      "Foo", "call", "std::sort", AstFact::TargetScope::kExternal,
-      "std::sort", "calls std::sort"));
-  index.facts.push_back(MakeRelationshipFact(
-      "Foo", "type_usage", "ExternalType",
-      AstFact::TargetScope::kExternal, "uses ExternalType",
-      "uses ExternalType"));
+      "Foo", "type_usage", "ExternalType", AstFact::TargetScope::kExternal,
+      "uses ExternalType", "uses ExternalType"));
 
   HeuristicDslExtractor extractor;
   const auto result = extractor.Extract(index);
