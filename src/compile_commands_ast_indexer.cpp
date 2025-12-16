@@ -78,9 +78,7 @@ ChooseCompileCommandsPath(const std::filesystem::path &explicit_path,
 
   if (!build_directory.empty()) {
     const auto candidate = build_directory / "compile_commands.json";
-    if (std::filesystem::exists(candidate)) {
-      return std::filesystem::weakly_canonical(candidate);
-    }
+    return std::filesystem::weakly_canonical(candidate);
   }
 
   return std::filesystem::weakly_canonical(project_root /

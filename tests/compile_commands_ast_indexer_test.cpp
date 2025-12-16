@@ -99,6 +99,32 @@ TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
           Field(&AstFact::source_location, HasSubstr("example.cpp:3")))));
 }
 
+TEST(CompileCommandsAstIndexerTest,
+     ReportsMissingCompileCommandsPathFromBuildDirectory) {
+  test::TemporaryProject project;
+  const auto build_dir = project.root() / "build";
+  std::filesystem::create_directories(build_dir);
+
+  SourceAcquisitionResult sources;
+  sources.project_root = project.root().string();
+  sources.build_directory = build_dir.string();
+
+  CompileCommandsAstIndexer indexer;
+
+  EXPECT_THROW(
+      {
+        try {
+          (void)indexer.BuildIndex(sources);
+        } catch (const std::runtime_error &error) {
+          EXPECT_THAT(
+              error.what(),
+              HasSubstr((build_dir / "compile_commands.json").string()));
+          throw;
+        }
+      },
+      std::runtime_error);
+}
+
 TEST(CompileCommandsAstIndexerTest, EmitsRelationshipFactsAndMetadata) {
   test::TemporaryProject project;
   const auto source_path = project.AddFile(
