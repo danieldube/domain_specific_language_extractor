@@ -47,7 +47,7 @@ template <typename Interface, typename Factory>
 std::unique_ptr<Interface>
 ComponentRegistry::CreateComponent(const std::string &name,
                                    const ComponentSet<Factory> &set,
-                                    const std::string &kind) const {
+                                   const std::string &kind) const {
   const auto target_name = name.empty() ? set.default_name : name;
   if (target_name.empty()) {
     throw std::invalid_argument("No default " + kind + " registered");
@@ -67,8 +67,7 @@ ComponentRegistry::CreateComponent(const std::string &name,
 
 template <typename Factory>
 void ComponentRegistry::RegisterComponent(const std::string &name,
-                                          Factory factory,
-                                          bool set_as_default,
+                                          Factory factory, bool set_as_default,
                                           ComponentSet<Factory> &set) {
   if (name.empty()) {
     throw std::invalid_argument("Component name cannot be empty");
@@ -146,11 +145,11 @@ const std::string &ComponentRegistry::DefaultReporterName() const {
 ComponentRegistry MakeComponentRegistryWithDefaults() {
   ComponentRegistry registry;
   registry.RegisterExtractor(
-      kDefaultExtractor, []() { return std::make_unique<HeuristicDslExtractor>(); },
-      true);
-  registry.RegisterAnalyzer(kDefaultAnalyzer, []() {
-    return std::make_unique<RuleBasedCoherenceAnalyzer>();
-  }, true);
+      kDefaultExtractor,
+      []() { return std::make_unique<HeuristicDslExtractor>(); }, true);
+  registry.RegisterAnalyzer(
+      kDefaultAnalyzer,
+      []() { return std::make_unique<RuleBasedCoherenceAnalyzer>(); }, true);
   registry.RegisterReporter(
       kDefaultReporter, []() { return std::make_unique<MarkdownReporter>(); },
       true);
@@ -163,29 +162,38 @@ const ComponentRegistry &GlobalComponentRegistry() {
 }
 
 template std::unique_ptr<DslExtractor>
-ComponentRegistry::CreateComponent<DslExtractor, ExtractorFactory>(
-    const std::string &, const ComponentSet<ExtractorFactory> &,
+ComponentRegistry::CreateComponent<DslExtractor,
+                                   ComponentRegistry::ExtractorFactory>(
+    const std::string &,
+    const ComponentSet<ComponentRegistry::ExtractorFactory> &,
     const std::string &) const;
 
 template std::unique_ptr<CoherenceAnalyzer>
-ComponentRegistry::CreateComponent<CoherenceAnalyzer, AnalyzerFactory>(
-    const std::string &, const ComponentSet<AnalyzerFactory> &,
+ComponentRegistry::CreateComponent<CoherenceAnalyzer,
+                                   ComponentRegistry::AnalyzerFactory>(
+    const std::string &,
+    const ComponentSet<ComponentRegistry::AnalyzerFactory> &,
     const std::string &) const;
 
 template std::unique_ptr<Reporter>
-ComponentRegistry::CreateComponent<Reporter, ReporterFactory>(
-    const std::string &, const ComponentSet<ReporterFactory> &,
+ComponentRegistry::CreateComponent<Reporter,
+                                   ComponentRegistry::ReporterFactory>(
+    const std::string &,
+    const ComponentSet<ComponentRegistry::ReporterFactory> &,
     const std::string &) const;
 
-template void ComponentRegistry::RegisterComponent<ComponentRegistry::ExtractorFactory>(
+template void
+ComponentRegistry::RegisterComponent<ComponentRegistry::ExtractorFactory>(
     const std::string &, ComponentRegistry::ExtractorFactory, bool,
     ComponentSet<ComponentRegistry::ExtractorFactory> &);
 
-template void ComponentRegistry::RegisterComponent<ComponentRegistry::AnalyzerFactory>(
+template void
+ComponentRegistry::RegisterComponent<ComponentRegistry::AnalyzerFactory>(
     const std::string &, ComponentRegistry::AnalyzerFactory, bool,
     ComponentSet<ComponentRegistry::AnalyzerFactory> &);
 
-template void ComponentRegistry::RegisterComponent<ComponentRegistry::ReporterFactory>(
+template void
+ComponentRegistry::RegisterComponent<ComponentRegistry::ReporterFactory>(
     const std::string &, ComponentRegistry::ReporterFactory, bool,
     ComponentSet<ComponentRegistry::ReporterFactory> &);
 

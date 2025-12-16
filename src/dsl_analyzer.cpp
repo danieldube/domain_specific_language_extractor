@@ -356,9 +356,9 @@ using RawConfig = std::unordered_map<std::string, ConfigValue>;
 
 const std::vector<std::string> &SupportedConfigKeys() {
   static const std::vector<std::string> keys = {
-      "root",      "build",       "out",       "formats",    "cache_ast",
-      "cache_dir", "clean_cache", "log_level", "scope_notes",
-      "extractor", "analyzer",    "reporter"};
+      "root",        "build",     "out",         "formats",
+      "cache_ast",   "cache_dir", "clean_cache", "log_level",
+      "scope_notes", "extractor", "analyzer",    "reporter"};
   return keys;
 }
 

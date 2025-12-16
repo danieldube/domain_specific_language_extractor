@@ -69,7 +69,8 @@ AnalysisConfig MinimalConfig() {
   return config;
 }
 
-TEST(ComponentRegistryTest, ProvidesDefaultsAndKeepsThemAfterCustomRegistration) {
+TEST(ComponentRegistryTest,
+     ProvidesDefaultsAndKeepsThemAfterCustomRegistration) {
   auto registry = MakeComponentRegistryWithDefaults();
 
   auto default_extractor = registry.CreateExtractor();
@@ -82,14 +83,11 @@ TEST(ComponentRegistryTest, ProvidesDefaultsAndKeepsThemAfterCustomRegistration)
   EXPECT_NE(dynamic_cast<MarkdownReporter *>(default_reporter.get()), nullptr);
 
   registry.RegisterExtractor(
-      "custom-extractor",
-      []() { return std::make_unique<CustomExtractor>(); });
-  registry.RegisterAnalyzer("custom-analyzer", []() {
-    return std::make_unique<CustomAnalyzer>();
-  });
-  registry.RegisterReporter("custom-reporter", []() {
-    return std::make_unique<CustomReporter>();
-  });
+      "custom-extractor", []() { return std::make_unique<CustomExtractor>(); });
+  registry.RegisterAnalyzer(
+      "custom-analyzer", []() { return std::make_unique<CustomAnalyzer>(); });
+  registry.RegisterReporter(
+      "custom-reporter", []() { return std::make_unique<CustomReporter>(); });
 
   auto still_default = registry.CreateExtractor();
   EXPECT_NE(dynamic_cast<HeuristicDslExtractor *>(still_default.get()),
@@ -102,14 +100,11 @@ TEST(ComponentRegistryTest, ProvidesDefaultsAndKeepsThemAfterCustomRegistration)
 TEST(ComponentRegistryTest, PipelineBuilderUsesCustomPluginsWhenSelected) {
   auto registry = MakeComponentRegistryWithDefaults();
   registry.RegisterExtractor(
-      "custom-extractor",
-      []() { return std::make_unique<CustomExtractor>(); });
-  registry.RegisterAnalyzer("custom-analyzer", []() {
-    return std::make_unique<CustomAnalyzer>();
-  });
-  registry.RegisterReporter("custom-reporter", []() {
-    return std::make_unique<CustomReporter>();
-  });
+      "custom-extractor", []() { return std::make_unique<CustomExtractor>(); });
+  registry.RegisterAnalyzer(
+      "custom-analyzer", []() { return std::make_unique<CustomAnalyzer>(); });
+  registry.RegisterReporter(
+      "custom-reporter", []() { return std::make_unique<CustomReporter>(); });
 
   AnalyzerPipelineBuilder builder(registry);
   builder.WithLogger(std::make_shared<NullLogger>());
@@ -124,9 +119,9 @@ TEST(ComponentRegistryTest, PipelineBuilderUsesCustomPluginsWhenSelected) {
 
   ASSERT_THAT(result.extraction.extraction_notes,
               ::testing::Contains("custom extractor used"));
-  ASSERT_THAT(result.coherence.findings,
-              ::testing::Contains(::testing::Field(&Finding::term,
-                                                   "custom-analyzer")));
+  ASSERT_THAT(
+      result.coherence.findings,
+      ::testing::Contains(::testing::Field(&Finding::term, "custom-analyzer")));
   EXPECT_EQ(result.report.markdown, "custom-report");
   EXPECT_EQ(result.report.json, "custom-json");
 }

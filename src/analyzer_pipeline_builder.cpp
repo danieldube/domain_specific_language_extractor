@@ -112,9 +112,9 @@ DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
                             ? std::move(components_.indexer)
                             : std::make_unique<CompileCommandsAstIndexer>(
                                   std::filesystem::path{}, components_.logger);
-  components_.extractor = components_.extractor
-                              ? std::move(components_.extractor)
-                              : registry_->CreateExtractor(selections_.extractor);
+  components_.extractor =
+      components_.extractor ? std::move(components_.extractor)
+                            : registry_->CreateExtractor(selections_.extractor);
   components_.analyzer = components_.analyzer
                              ? std::move(components_.analyzer)
                              : registry_->CreateAnalyzer(selections_.analyzer);

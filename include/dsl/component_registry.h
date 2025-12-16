@@ -13,8 +13,7 @@ namespace dsl {
 class ComponentRegistry {
 public:
   using ExtractorFactory = std::function<std::unique_ptr<DslExtractor>()>;
-  using AnalyzerFactory =
-      std::function<std::unique_ptr<CoherenceAnalyzer>()>;
+  using AnalyzerFactory = std::function<std::unique_ptr<CoherenceAnalyzer>()>;
   using ReporterFactory = std::function<std::unique_ptr<Reporter>()>;
 
   void RegisterExtractor(const std::string &name, ExtractorFactory factory,
@@ -38,8 +37,7 @@ public:
   const std::string &DefaultAnalyzerName() const;
   const std::string &DefaultReporterName() const;
 
-  template <typename Factory>
-  struct ComponentSet {
+  template <typename Factory> struct ComponentSet {
     std::unordered_map<std::string, Factory> factories;
     std::string default_name;
   };
@@ -53,9 +51,9 @@ private:
   static std::string JoinNames(const ComponentSet<Factory> &set);
 
   template <typename Interface, typename Factory>
-  std::unique_ptr<Interface>
-  CreateComponent(const std::string &name, const ComponentSet<Factory> &set,
-                  const std::string &kind) const;
+  std::unique_ptr<Interface> CreateComponent(const std::string &name,
+                                             const ComponentSet<Factory> &set,
+                                             const std::string &kind) const;
 
   template <typename Factory>
   void RegisterComponent(const std::string &name, Factory factory,

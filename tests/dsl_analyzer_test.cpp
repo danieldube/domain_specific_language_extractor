@@ -10,12 +10,12 @@ namespace {
 
 TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   const std::vector<std::string> args = {
-      "--root",        "/project/root", "--build",     "build-dir",
-      "--format",      "markdown,json", "--out",       "out-dir",
-      "--scope-notes", "notes",         "--config",    "config.yml",
-      "--log-level",   "debug",         "--cache-ast", "--clean-cache",
-      "--cache-dir",   "cache",         "--extractor", "custom-extractor",
-      "--analyzer",    "custom-analyzer", "--reporter", "custom-reporter"};
+      "--root",        "/project/root",   "--build",     "build-dir",
+      "--format",      "markdown,json",   "--out",       "out-dir",
+      "--scope-notes", "notes",           "--config",    "config.yml",
+      "--log-level",   "debug",           "--cache-ast", "--clean-cache",
+      "--cache-dir",   "cache",           "--extractor", "custom-extractor",
+      "--analyzer",    "custom-analyzer", "--reporter",  "custom-reporter"};
 
   const auto options = ParseAnalyzeArguments(args);
 
@@ -35,8 +35,7 @@ TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   EXPECT_TRUE(options.clean_cache.value());
   ASSERT_TRUE(options.cache_directory);
   EXPECT_EQ(options.cache_directory->generic_string(), "cache");
-  EXPECT_EQ(options.extractor,
-            std::optional<std::string>("custom-extractor"));
+  EXPECT_EQ(options.extractor, std::optional<std::string>("custom-extractor"));
   EXPECT_EQ(options.analyzer, std::optional<std::string>("custom-analyzer"));
   EXPECT_EQ(options.reporter, std::optional<std::string>("custom-reporter"));
 }
