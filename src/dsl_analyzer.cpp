@@ -130,92 +130,222 @@ void AppendFormats(const std::string &raw_formats,
   }
 }
 
-AnalyzeOptions
-ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
+std::string RequireValue(const std::vector<std::string> &arguments,
+                         std::size_t &index, const std::string &flag) {
+  if (++index >= arguments.size()) {
+    throw std::invalid_argument(flag + " requires a value");
+  }
+  return arguments[index];
+}
+
+void HandleCacheOption(const std::vector<std::string> &arguments,
+                       std::size_t &index, AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--cache-ast") {
+    options.enable_ast_cache = true;
+    return;
+  }
+  if (argument == "--clean-cache") {
+    options.clean_cache = true;
+    return;
+  }
+  if (argument == "--cache-dir") {
+    options.cache_directory = RequireValue(arguments, index, "--cache-dir");
+    return;
+  }
+}
+
+void HandleLoggingOption(const std::vector<std::string> &arguments,
+                         std::size_t &index, AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--log-level") {
+    options.log_level = ParseLogLevel(
+        RequireValue(arguments, index, std::string(argument)));
+    return;
+  }
+  if (argument == "--verbose") {
+    options.log_level = dsl::LogLevel::kInfo;
+    return;
+  }
+  if (argument == "--debug") {
+    options.log_level = dsl::LogLevel::kDebug;
+    return;
+  }
+}
+
+void HandleFormatOption(const std::vector<std::string> &arguments,
+                        std::size_t &index, AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--format") {
+    AppendFormats(RequireValue(arguments, index, "--format"),
+                 options.formats);
+  }
+}
+
+bool DispatchAnalyzeOption(const std::vector<std::string> &arguments,
+                           std::size_t &index, AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--help" || argument == "-h") {
+    options.show_help = true;
+    return true;
+  }
+  if (argument == "--root") {
+    options.root = RequireValue(arguments, index, "--root");
+    return true;
+  }
+  if (argument == "--build") {
+    options.build_directory = RequireValue(arguments, index, "--build");
+    return true;
+  }
+  if (argument == "--out") {
+    options.output_directory = RequireValue(arguments, index, "--out");
+    return true;
+  }
+  if (argument == "--scope-notes") {
+    options.scope_notes = RequireValue(arguments, index, "--scope-notes");
+    return true;
+  }
+  if (argument == "--config") {
+    options.config_file = RequireValue(arguments, index, "--config");
+    return true;
+  }
+
+  HandleFormatOption(arguments, index, options);
+  if (argument == "--format") {
+    return true;
+  }
+
+  HandleLoggingOption(arguments, index, options);
+  if (argument == "--log-level" || argument == "--verbose" ||
+      argument == "--debug") {
+    return true;
+  }
+
+  HandleCacheOption(arguments, index, options);
+  if (argument == "--cache-ast" || argument == "--clean-cache" ||
+      argument == "--cache-dir") {
+    return true;
+  }
+
+  return false;
+}
+
+void ValidateAnalyzeOptions(const AnalyzeOptions &options) {
+  if (!options.root) {
+    throw std::invalid_argument("--root is required (or set in config file)");
+  }
+}
+
+void WriteFileIfContent(const std::filesystem::path &path,
+                        const std::string &content) {
+  if (content.empty()) {
+    return;
+  }
+  std::ofstream stream(path);
+  if (!stream) {
+    throw std::runtime_error("Failed to open output file: " + path.string());
+  }
+  stream << content;
+}
+
+void WriteReports(const std::filesystem::path &root,
+                  const dsl::Report &report) {
+  std::filesystem::create_directories(root);
+  WriteFileIfContent(root / "dsl_report.md", report.markdown);
+  WriteFileIfContent(root / "dsl_report.json", report.json);
+}
+
+} // namespace
+
+namespace dsl {
+
+AnalyzeOptions ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
   AnalyzeOptions options;
 
   for (std::size_t i = 0; i < arguments.size(); ++i) {
-    const std::string &argument = arguments[i];
-    if (argument == "--help" || argument == "-h") {
-      options.show_help = true;
-      return options;
+    if (!DispatchAnalyzeOption(arguments, i, options)) {
+      throw std::invalid_argument("Unknown argument: " + arguments[i]);
     }
-    if (argument == "--root") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--root requires a value");
-      }
-      options.root = arguments[i];
-      continue;
+    if (options.show_help) {
+      break;
     }
-    if (argument == "--build") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--build requires a value");
-      }
-      options.build_directory = arguments[i];
-      continue;
-    }
-    if (argument == "--format") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--format requires a value");
-      }
-      AppendFormats(arguments[i], options.formats);
-      continue;
-    }
-    if (argument == "--out") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--out requires a value");
-      }
-      options.output_directory = arguments[i];
-      continue;
-    }
-    if (argument == "--scope-notes") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--scope-notes requires a value");
-      }
-      options.scope_notes = arguments[i];
-      continue;
-    }
-    if (argument == "--config") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--config requires a file path");
-      }
-      options.config_file = arguments[i];
-      continue;
-    }
-    if (argument == "--log-level") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--log-level requires a value");
-      }
-      options.log_level = ParseLogLevel(arguments[i]);
-      continue;
-    }
-    if (argument == "--verbose") {
-      options.log_level = dsl::LogLevel::kInfo;
-      continue;
-    }
-    if (argument == "--debug") {
-      options.log_level = dsl::LogLevel::kDebug;
-      continue;
-    }
-    if (argument == "--cache-ast") {
-      options.enable_ast_cache = true;
-      continue;
-    }
-    if (argument == "--clean-cache") {
-      options.clean_cache = true;
-      continue;
-    }
-    if (argument == "--cache-dir") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--cache-dir requires a value");
-      }
-      options.cache_directory = arguments[i];
-      continue;
-    }
-    throw std::invalid_argument("Unknown argument: " + argument);
   }
 
   return options;
+}
+
+std::optional<ConfigEntry> ParseConfigLine(std::string line) {
+  const auto comment = line.find('#');
+  if (comment != std::string::npos) {
+    line = line.substr(0, comment);
+  }
+  line = Trim(line);
+  if (line.empty()) {
+    return std::nullopt;
+  }
+
+  const auto delimiter = line.find_first_of(":=");
+  if (delimiter == std::string::npos) {
+    throw std::invalid_argument("Invalid config line (missing delimiter): " +
+                                line);
+  }
+
+  auto key = Trim(line.substr(0, delimiter));
+  auto value = Trim(line.substr(delimiter + 1));
+  if (key.empty()) {
+    throw std::invalid_argument("Invalid config line (missing key): " + line);
+  }
+
+  if (!value.empty() && value.front() == '[' && value.back() == ']') {
+    value = value.substr(1, value.size() - 2);
+  }
+  if (!value.empty() && ((value.front() == '"' && value.back() == '"') ||
+                         (value.front() == '\'' && value.back() == '\''))) {
+    value = value.substr(1, value.size() - 2);
+  }
+
+  return ConfigEntry{ToLower(key), value};
+}
+
+void ApplyConfigEntry(const ConfigEntry &entry, AnalyzeOptions &options) {
+  const auto &key = entry.key;
+  const auto &value = entry.value;
+
+  if (key == "root") {
+    options.root = value;
+    return;
+  }
+  if (key == "build" || key == "build_directory") {
+    options.build_directory = value;
+    return;
+  }
+  if (key == "out" || key == "output" || key == "output_directory") {
+    options.output_directory = value;
+    return;
+  }
+  if (key == "scope_notes" || key == "scope-notes") {
+    options.scope_notes = value;
+    return;
+  }
+  if (key == "formats" || key == "format") {
+    AppendFormats(value, options.formats);
+    return;
+  }
+  if (key == "log_level" || key == "log-level") {
+    options.log_level = ParseLogLevel(value);
+    return;
+  }
+  if (key == "cache_ast" || key == "cache-ast") {
+    options.enable_ast_cache = ParseBool(value);
+    return;
+  }
+  if (key == "clean_cache" || key == "clean-cache") {
+    options.clean_cache = ParseBool(value);
+    return;
+  }
+  if (key == "cache_dir" || key == "cache-dir") {
+    options.cache_directory = value;
+  }
 }
 
 AnalyzeOptions ParseConfigFile(const std::filesystem::path &path) {
@@ -232,65 +362,11 @@ AnalyzeOptions ParseConfigFile(const std::filesystem::path &path) {
   std::ifstream stream(path);
   std::string line;
   while (std::getline(stream, line)) {
-    const auto comment = line.find('#');
-    if (comment != std::string::npos) {
-      line = line.substr(0, comment);
-    }
-    line = Trim(line);
-    if (line.empty()) {
+    const auto parsed = ParseConfigLine(line);
+    if (!parsed) {
       continue;
     }
-    const auto delimiter = line.find_first_of(":=");
-    if (delimiter == std::string::npos) {
-      continue;
-    }
-    auto key = Trim(line.substr(0, delimiter));
-    auto value = Trim(line.substr(delimiter + 1));
-    if (!value.empty() && value.front() == '[' && value.back() == ']') {
-      value = value.substr(1, value.size() - 2);
-    }
-    if (!value.empty() && ((value.front() == '"' && value.back() == '"') ||
-                           (value.front() == '\'' && value.back() == '\''))) {
-      value = value.substr(1, value.size() - 2);
-    }
-    key = ToLower(key);
-
-    if (key == "root") {
-      options.root = value;
-      continue;
-    }
-    if (key == "build" || key == "build_directory") {
-      options.build_directory = value;
-      continue;
-    }
-    if (key == "out" || key == "output" || key == "output_directory") {
-      options.output_directory = value;
-      continue;
-    }
-    if (key == "scope_notes" || key == "scope-notes") {
-      options.scope_notes = value;
-      continue;
-    }
-    if (key == "formats" || key == "format") {
-      AppendFormats(value, options.formats);
-      continue;
-    }
-    if (key == "log_level" || key == "log-level") {
-      options.log_level = ParseLogLevel(value);
-      continue;
-    }
-    if (key == "cache_ast" || key == "cache-ast") {
-      options.enable_ast_cache = ParseBool(value);
-      continue;
-    }
-    if (key == "clean_cache" || key == "clean-cache") {
-      options.clean_cache = ParseBool(value);
-      continue;
-    }
-    if (key == "cache_dir" || key == "cache-dir") {
-      options.cache_directory = value;
-      continue;
-    }
+    ApplyConfigEntry(*parsed, options);
   }
 
   return options;
@@ -327,34 +403,20 @@ AnalyzeOptions MergeOptions(const AnalyzeOptions &config_options,
   return merged;
 }
 
-void ValidateAnalyzeOptions(const AnalyzeOptions &options) {
-  if (!options.root) {
-    throw std::invalid_argument("--root is required (or set in config file)");
+AnalyzeOptions ResolveAnalyzeOptions(const AnalyzeOptions &cli_options) {
+  if (cli_options.show_help) {
+    return cli_options;
   }
-}
 
-void WriteFileIfContent(const std::filesystem::path &path,
-                        const std::string &content) {
-  if (content.empty()) {
-    return;
+  AnalyzeOptions config_options;
+  if (cli_options.config_file) {
+    config_options = ParseConfigFile(*cli_options.config_file);
   }
-  std::ofstream stream(path);
-  if (!stream) {
-    throw std::runtime_error("Failed to open output file: " + path.string());
-  }
-  stream << content;
+
+  const auto merged = MergeOptions(config_options, cli_options);
+  ValidateAnalyzeOptions(merged);
+  return merged;
 }
-
-void WriteReports(const std::filesystem::path &root,
-                  const dsl::Report &report) {
-  std::filesystem::create_directories(root);
-  WriteFileIfContent(root / "dsl_report.md", report.markdown);
-  WriteFileIfContent(root / "dsl_report.json", report.json);
-}
-
-} // namespace
-
-namespace dsl {
 
 AstCacheOptions BuildCacheOptions(const AnalyzeOptions &options,
                                   const std::filesystem::path &root) {
@@ -399,6 +461,29 @@ dsl::AnalysisConfig BuildAnalysisConfig(const AnalyzeOptions &options,
   return config;
 }
 
+dsl::DefaultAnalyzerPipeline BuildAnalyzePipeline(
+    const AnalyzeOptions &options, const std::filesystem::path &root,
+    const std::shared_ptr<dsl::Logger> &logger) {
+  dsl::AnalyzerPipelineBuilder builder;
+  builder.WithLogger(logger);
+  builder.WithSourceAcquirer(std::make_unique<dsl::CMakeSourceAcquirer>(
+      ResolveBuildDirectory(options, root), logger));
+  builder.WithIndexer(std::make_unique<dsl::CompileCommandsAstIndexer>(
+      std::filesystem::path{}, logger));
+  builder.WithExtractor(std::make_unique<dsl::HeuristicDslExtractor>());
+  builder.WithAnalyzer(std::make_unique<dsl::RuleBasedCoherenceAnalyzer>());
+  builder.WithReporter(std::make_unique<dsl::MarkdownReporter>());
+  builder.WithAstCacheOptions(BuildCacheOptions(options, root));
+  return builder.Build();
+}
+
+void WriteAnalyzeReports(const AnalyzeOptions &options,
+                         const std::filesystem::path &root,
+                         const dsl::Report &report) {
+  const auto output_root = options.output_directory.value_or(root);
+  WriteReports(output_root, report);
+}
+
 int RunAnalyze(const std::vector<std::string> &arguments) {
   const auto cli_options = ParseAnalyzeArguments(arguments);
   if (cli_options.show_help) {
@@ -406,74 +491,73 @@ int RunAnalyze(const std::vector<std::string> &arguments) {
     return 0;
   }
 
-  AnalyzeOptions config_options;
-  if (cli_options.config_file) {
-    config_options = ParseConfigFile(*cli_options.config_file);
-  }
-
-  const auto merged = MergeOptions(config_options, cli_options);
-  ValidateAnalyzeOptions(merged);
-
+  const auto merged = ResolveAnalyzeOptions(cli_options);
   const auto root = std::filesystem::weakly_canonical(*merged.root);
   const auto cache_directory =
       merged.cache_directory.value_or(root / ".dsl_cache");
   auto logger = dsl::MakeLogger(BuildLoggingConfig(merged), std::clog);
 
-  dsl::AnalyzerPipelineBuilder builder;
-  builder.WithLogger(logger);
-  builder.WithSourceAcquirer(std::make_unique<dsl::CMakeSourceAcquirer>(
-      ResolveBuildDirectory(merged, root), logger));
-  builder.WithIndexer(std::make_unique<dsl::CompileCommandsAstIndexer>(
-      std::filesystem::path{}, logger));
-  builder.WithExtractor(std::make_unique<dsl::HeuristicDslExtractor>());
-  builder.WithAnalyzer(std::make_unique<dsl::RuleBasedCoherenceAnalyzer>());
-  builder.WithReporter(std::make_unique<dsl::MarkdownReporter>());
-  builder.WithAstCacheOptions(BuildCacheOptions(merged, root));
-
-  auto pipeline = builder.Build();
+  auto pipeline = BuildAnalyzePipeline(merged, root, logger);
   auto config = BuildAnalysisConfig(merged, root, cache_directory, logger);
 
   const auto result = pipeline.Run(config);
-  const auto output_root = merged.output_directory.value_or(root);
-  WriteReports(output_root, result.report);
+  WriteAnalyzeReports(merged, root, result.report);
   return dsl::CoherenceExitCode(result.coherence);
 }
 
-int RunCacheClean(const std::vector<std::string> &arguments) {
-  std::optional<std::filesystem::path> root;
-  std::optional<std::filesystem::path> cache_directory;
+CacheCleanOptions
+ParseCacheCleanArguments(const std::vector<std::string> &arguments) {
+  CacheCleanOptions options;
   for (std::size_t i = 0; i < arguments.size(); ++i) {
     const auto &arg = arguments[i];
     if (arg == "--root") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--root requires a value");
-      }
-      root = arguments[i];
+      options.root = RequireValue(arguments, i, "--root");
       continue;
     }
     if (arg == "--cache-dir") {
-      if (++i >= arguments.size()) {
-        throw std::invalid_argument("--cache-dir requires a value");
-      }
-      cache_directory = arguments[i];
+      options.cache_directory = RequireValue(arguments, i, "--cache-dir");
       continue;
     }
     if (arg == "--help" || arg == "-h") {
-      std::cout << "Usage: dsl-extract cache clean --root <path> [--cache-dir "
-                   "<path>]\n";
-      return 0;
+      options.show_help = true;
+      return options;
     }
     throw std::invalid_argument("Unknown cache argument: " + arg);
   }
+  return options;
+}
 
-  if (!root) {
+std::filesystem::path
+ResolveCacheDirectory(const CacheCleanOptions &options,
+                      const std::filesystem::path &root) {
+  if (options.cache_directory) {
+    return *options.cache_directory;
+  }
+  return root / ".dsl_cache";
+}
+
+bool RemoveCacheDirectory(const std::filesystem::path &path) {
+  if (!std::filesystem::exists(path)) {
+    return false;
+  }
+  std::filesystem::remove_all(path);
+  return true;
+}
+
+int RunCacheClean(const std::vector<std::string> &arguments) {
+  const auto options = ParseCacheCleanArguments(arguments);
+  if (options.show_help) {
+    std::cout << "Usage: dsl-extract cache clean --root <path> [--cache-dir "
+                 "<path>]\n";
+    return 0;
+  }
+  if (!options.root) {
     throw std::invalid_argument("--root is required for cache clean");
   }
 
-  const auto resolved_root = std::filesystem::weakly_canonical(*root);
-  const auto cache_dir = cache_directory.value_or(resolved_root / ".dsl_cache");
-  if (std::filesystem::exists(cache_dir)) {
-    std::filesystem::remove_all(cache_dir);
+  const auto resolved_root = std::filesystem::weakly_canonical(*options.root);
+  const auto cache_dir = ResolveCacheDirectory(options, resolved_root);
+  if (RemoveCacheDirectory(cache_dir)) {
     std::cout << "Removed cache at " << cache_dir << "\n";
   } else {
     std::cout << "No cache directory found at " << cache_dir << "\n";
