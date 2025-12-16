@@ -13,9 +13,9 @@
 namespace dsl {
 namespace {
 
-std::filesystem::path WriteCompileCommands(
-    const std::filesystem::path &build_directory,
-    const std::filesystem::path &source_path) {
+std::filesystem::path
+WriteCompileCommands(const std::filesystem::path &build_directory,
+                     const std::filesystem::path &source_path) {
   std::filesystem::create_directories(build_directory);
   const auto compile_commands_path = build_directory / "compile_commands.json";
   std::ofstream stream(compile_commands_path);
@@ -23,8 +23,8 @@ std::filesystem::path WriteCompileCommands(
   stream << "  {\n";
   stream << "    \"directory\": \"" << build_directory.string() << "\",\n";
   stream << "    \"file\": \"" << source_path.string() << "\",\n";
-  stream << "    \"command\": \"clang++ -std=c++17 -c "
-         << source_path.string() << "\"\n";
+  stream << "    \"command\": \"clang++ -std=c++17 -c " << source_path.string()
+         << "\"\n";
   stream << "  }\n";
   stream << "]\n";
   return compile_commands_path;
@@ -52,8 +52,8 @@ std::string NormalizeReport(const std::string &raw_report,
                             const std::filesystem::path &root) {
   std::string normalized = raw_report;
   const std::regex timestamp_row(R"(\| Generated On \|[^|]*\|)");
-  normalized =
-      std::regex_replace(normalized, timestamp_row, "| Generated On | <timestamp> |");
+  normalized = std::regex_replace(normalized, timestamp_row,
+                                  "| Generated On | <timestamp> |");
   ReplaceAll(normalized, std::filesystem::weakly_canonical(root).string(),
              "<root>");
   return normalized;
@@ -62,29 +62,27 @@ std::string NormalizeReport(const std::string &raw_report,
 TEST(EndToEndDslExtractionTest, ExtractsExpectedDslMarkdown) {
   test::TemporaryProject project;
   const auto cmake_lists = project.AddFile(
-      "CMakeLists.txt",
-      "cmake_minimum_required(VERSION 3.20)\n"
-      "project(dsl_e2e_sample LANGUAGES CXX)\n"
-      "add_executable(sample src/main.cpp)\n");
+      "CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n"
+                        "project(dsl_e2e_sample LANGUAGES CXX)\n"
+                        "add_executable(sample src/main.cpp)\n");
   (void)cmake_lists;
 
   const auto source_path = project.AddFile(
-      "src/main.cpp",
-      "struct Widget {\n"
-      "  int value;\n"
-      "};\n\n"
-      "int Add(int a, int b) { return a + b; }\n\n"
-      "int Use(const Widget &widget) { return Add(widget.value, widget.value); }\n");
+      "src/main.cpp", "struct Widget {\n"
+                      "  int value;\n"
+                      "};\n\n"
+                      "int Add(int a, int b) { return a + b; }\n\n"
+                      "int Use(const Widget &widget) { return "
+                      "Add(widget.value, widget.value); }\n");
 
   const auto build_directory = project.root() / "build";
   WriteCompileCommands(build_directory, source_path);
   const auto output_directory = project.root() / "out";
 
-  const int exit_code = RunAnalyze({"--root", project.root().string(),
-                                    "--build", build_directory.string(),
-                                    "--format", "markdown",
-                                    "--out", output_directory.string(),
-                                    "--log-level", "error"});
+  const int exit_code =
+      RunAnalyze({"--root", project.root().string(), "--build",
+                  build_directory.string(), "--format", "markdown", "--out",
+                  output_directory.string(), "--log-level", "error"});
 
   ASSERT_EQ(exit_code, 0);
   const auto report_path = output_directory / "dsl_report.md";
