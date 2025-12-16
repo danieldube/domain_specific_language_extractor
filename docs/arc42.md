@@ -45,6 +45,9 @@
 
 ### 5.1 High-Level Components
 - **CLI Frontend:** argument parsing, configuration loading, and command dispatch (e.g., `analyze`, `report`, `cache clean`).
+  The `report` subcommand re-emits cached Markdown/JSON reports from a prior
+  `analyze` run without reprocessing the source tree, optionally targeting a new
+  output directory.
 - **Source Acquisition:** resolves repository root, validates the project layout, normalizes source file paths, and filters out generated/build artifacts. The `CMakeSourceAcquirer` is an adapter for CMake-based projects but remains interchangeable with other acquirers without exposing build-system details.
 - **Parsing & AST Indexer:** wraps clang tooling to produce a semantic index (symbols, types, call graph, comments); caches results for reuse.
 - **DSL Extraction Engine:** converts AST facts into DSL terms (domain entities, actions, relationships) using deterministic heuristics; optionally enriches via LLM strategies behind a small interface.

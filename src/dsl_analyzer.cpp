@@ -50,6 +50,17 @@ void PrintAnalyzeUsage() {
       << "  --help                Show this message\n";
 }
 
+void PrintReportUsage() {
+  std::cout << "Usage: dsl-extract report --root <path> [options]\n"
+            << "Options:\n"
+            << "  --root <path>   Directory containing cached reports\n"
+            << "  --out <path>    Directory for regenerated reports\n"
+            << "                  (default: reuse --root)\n"
+            << "  --format <list> Comma-separated list of output formats\n"
+            << "                  (supported: markdown,json)\n"
+            << "  --help          Show this message\n";
+}
+
 std::string Trim(std::string value) {
   const auto is_space = [](unsigned char ch) { return std::isspace(ch) != 0; };
   value.erase(value.begin(),
@@ -248,6 +259,27 @@ void WriteReports(const std::filesystem::path &root,
   WriteFileIfContent(root / "dsl_report.json", report.json);
 }
 
+std::string ReadFileContent(const std::filesystem::path &path) {
+  std::ifstream stream(path);
+  if (!stream) {
+    throw std::runtime_error("Failed to open cached report: " + path.string());
+  }
+  return std::string(std::istreambuf_iterator<char>(stream),
+                     std::istreambuf_iterator<char>());
+}
+
+std::vector<std::string>
+DetectAvailableReportFormats(const std::filesystem::path &root) {
+  std::vector<std::string> formats;
+  if (std::filesystem::exists(root / "dsl_report.md")) {
+    formats.emplace_back("markdown");
+  }
+  if (std::filesystem::exists(root / "dsl_report.json")) {
+    formats.emplace_back("json");
+  }
+  return formats;
+}
+
 } // namespace
 
 namespace dsl {
@@ -265,6 +297,31 @@ ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
     }
   }
 
+  return options;
+}
+
+ReportOptions ParseReportArguments(const std::vector<std::string> &arguments) {
+  ReportOptions options;
+  for (std::size_t i = 0; i < arguments.size(); ++i) {
+    const auto &argument = arguments[i];
+    if (argument == "--help" || argument == "-h") {
+      options.show_help = true;
+      return options;
+    }
+    if (argument == "--root") {
+      options.root = RequireValue(arguments, i, "--root");
+      continue;
+    }
+    if (argument == "--out") {
+      options.output_directory = RequireValue(arguments, i, "--out");
+      continue;
+    }
+    if (argument == "--format") {
+      AppendFormats(RequireValue(arguments, i, "--format"), options.formats);
+      continue;
+    }
+    throw std::invalid_argument("Unknown report argument: " + argument);
+  }
   return options;
 }
 
@@ -506,6 +563,48 @@ AnalyzeOptions ResolveAnalyzeOptions(const AnalyzeOptions &cli_options) {
   return merged;
 }
 
+void ValidateReportOptions(const ReportOptions &options) {
+  if (!options.root) {
+    throw std::invalid_argument("--root is required for report command");
+  }
+}
+
+std::vector<std::string>
+ResolveReportFormats(const ReportOptions &options,
+                     const std::filesystem::path &input_root) {
+  const auto available = DetectAvailableReportFormats(input_root);
+  if (options.formats.empty()) {
+    if (available.empty()) {
+      throw std::invalid_argument("No cached reports found under " +
+                                  input_root.string());
+    }
+    return available;
+  }
+
+  for (const auto &format : options.formats) {
+    if (std::find(available.begin(), available.end(), format) ==
+        available.end()) {
+      throw std::invalid_argument("Cached " + format +
+                                  " report not found under " +
+                                  input_root.string());
+    }
+  }
+  return options.formats;
+}
+
+dsl::Report LoadCachedReport(const std::filesystem::path &root,
+                             const std::vector<std::string> &formats) {
+  dsl::Report report;
+  for (const auto &format : formats) {
+    if (format == "markdown") {
+      report.markdown = ReadFileContent(root / "dsl_report.md");
+    } else if (format == "json") {
+      report.json = ReadFileContent(root / "dsl_report.json");
+    }
+  }
+  return report;
+}
+
 AstCacheOptions BuildCacheOptions(const AnalyzeOptions &options,
                                   const std::filesystem::path &root) {
   AstCacheOptions cache_options;
@@ -592,6 +691,24 @@ int RunAnalyze(const std::vector<std::string> &arguments) {
   const auto result = pipeline.Run(config);
   WriteAnalyzeReports(merged, root, result.report);
   return dsl::CoherenceExitCode(result.coherence);
+}
+
+int RunReport(const std::vector<std::string> &arguments) {
+  const auto options = ParseReportArguments(arguments);
+  if (options.show_help) {
+    PrintReportUsage();
+    return 0;
+  }
+
+  ValidateReportOptions(options);
+  const auto input_root = std::filesystem::weakly_canonical(*options.root);
+  const auto output_root =
+      options.output_directory.value_or(std::filesystem::path{input_root});
+
+  const auto formats = ResolveReportFormats(options, input_root);
+  const auto cached_report = LoadCachedReport(input_root, formats);
+  WriteReports(output_root, cached_report);
+  return 0;
 }
 
 CacheCleanOptions

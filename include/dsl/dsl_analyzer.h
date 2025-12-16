@@ -23,6 +23,13 @@ struct AnalyzeOptions {
   bool show_help = false;
 };
 
+struct ReportOptions {
+  std::optional<std::filesystem::path> root;
+  std::optional<std::filesystem::path> output_directory;
+  std::vector<std::string> formats;
+  bool show_help = false;
+};
+
 struct CacheCleanOptions {
   std::optional<std::filesystem::path> root;
   std::optional<std::filesystem::path> cache_directory;
@@ -37,6 +44,9 @@ AnalyzeOptions ParseConfigFile(const std::filesystem::path &path);
 AnalyzeOptions MergeOptions(const AnalyzeOptions &config_options,
                             const AnalyzeOptions &cli_options);
 AnalyzeOptions ResolveAnalyzeOptions(const AnalyzeOptions &cli_options);
+
+ReportOptions ParseReportArguments(const std::vector<std::string> &arguments);
+int RunReport(const std::vector<std::string> &arguments);
 
 CacheCleanOptions
 ParseCacheCleanArguments(const std::vector<std::string> &arguments);

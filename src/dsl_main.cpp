@@ -11,7 +11,7 @@ void PrintGlobalUsage() {
       << "Usage: dsl-extract <command> [options]\n\n"
       << "Commands:\n"
       << "  analyze   Run DSL analysis (default if no command is given).\n"
-      << "  report    (placeholder) Render reports from cached analysis.\n"
+      << "  report    Re-render reports from cached analysis artifacts.\n"
       << "  cache     Manage caches (subcommands: clean).\n\n"
       << "Run 'dsl-extract analyze --help' for analysis options.\n";
 }
@@ -42,10 +42,10 @@ int main(int argc, char **argv) {
     }
 
     if (command == "report") {
-      std::cout
-          << "Report command is not implemented yet. Run 'dsl-extract analyze' "
-             "to generate reports.\n";
-      return 1;
+      const std::vector<std::string> report_arguments(
+          arguments.begin() + static_cast<std::ptrdiff_t>(first_argument_index),
+          arguments.end());
+      return dsl::RunReport(report_arguments);
     }
 
     if (command == "cache") {

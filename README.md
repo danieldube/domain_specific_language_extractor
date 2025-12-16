@@ -42,6 +42,21 @@ dsl-extract analyze --root <path> [--build <dir>] [--format markdown,json] \
   incoherence findings are present, and `1` for fatal errors such as missing
   inputs or unsupported commands.
 
+Regenerate reports from cached artifacts with the `report` command. It copies
+existing `dsl_report.md`/`dsl_report.json` files into a new destination and can
+filter which formats to emit:
+
+```
+dsl-extract report --root <path> [--out <dir>] [--format markdown,json]
+```
+
+- `--root` points to the directory containing cached reports from a previous
+  `analyze` run.
+- `--out` writes the regenerated reports to the provided directory; omit to
+  overwrite the cached location.
+- `--format` optionally restricts which cached formats to emit; when omitted,
+  the command emits every cached format it finds under `--root`.
+
 ### Configuration file example (YAML)
 
 YAML supports nested paths and list formats:

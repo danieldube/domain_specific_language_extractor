@@ -36,6 +36,20 @@ TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   EXPECT_EQ(options.cache_directory->generic_string(), "cache");
 }
 
+TEST(ParseReportArgumentsTest, ParsesFlagsAndFormats) {
+  const std::vector<std::string> args = {"--root",   "/project/root",
+                                         "--out",    "reports",
+                                         "--format", "markdown,json"};
+
+  const auto options = ParseReportArguments(args);
+
+  ASSERT_TRUE(options.root);
+  EXPECT_EQ(options.root->generic_string(), "/project/root");
+  ASSERT_TRUE(options.output_directory);
+  EXPECT_EQ(options.output_directory->generic_string(), "reports");
+  ASSERT_EQ(options.formats, (std::vector<std::string>{"markdown", "json"}));
+}
+
 TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   const auto temp_config =
       std::filesystem::temp_directory_path() / "dsl_analyzer_config_test.yaml";
@@ -124,6 +138,58 @@ TEST(CacheCleanHelpersTest, RemovesCacheDirectoryIfPresent) {
   EXPECT_TRUE(RemoveCacheDirectory(temp_dir));
   EXPECT_FALSE(std::filesystem::exists(temp_dir));
   EXPECT_FALSE(RemoveCacheDirectory(temp_dir));
+}
+
+TEST(RunReportTest, CopiesCachedReportsToOutput) {
+  const auto input_root =
+      std::filesystem::temp_directory_path() / "dsl_report_input";
+  std::filesystem::create_directories(input_root);
+  const auto markdown_path = input_root / "dsl_report.md";
+  const auto json_path = input_root / "dsl_report.json";
+  {
+    std::ofstream markdown(markdown_path);
+    markdown << "cached markdown";
+  }
+  {
+    std::ofstream json(json_path);
+    json << "cached json";
+  }
+
+  const auto output_root =
+      std::filesystem::temp_directory_path() / "dsl_report_output";
+
+  const int exit_code =
+      RunReport({"--root", input_root.string(), "--out", output_root.string(),
+                 "--format", "markdown,json"});
+
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(std::filesystem::exists(output_root / "dsl_report.md"));
+  EXPECT_TRUE(std::filesystem::exists(output_root / "dsl_report.json"));
+  std::filesystem::remove_all(input_root);
+  std::filesystem::remove_all(output_root);
+}
+
+TEST(RunReportTest, DetectsAvailableFormatsWhenNotSpecified) {
+  const auto input_root =
+      std::filesystem::temp_directory_path() / "dsl_report_defaults";
+  std::filesystem::create_directories(input_root);
+  const auto markdown_path = input_root / "dsl_report.md";
+  {
+    std::ofstream markdown(markdown_path);
+    markdown << "cached markdown";
+  }
+
+  const auto output_root =
+      std::filesystem::temp_directory_path() / "dsl_report_defaults_out";
+
+  const int exit_code =
+      RunReport({"--root", input_root.string(), "--out", output_root.string()});
+
+  EXPECT_EQ(exit_code, 0);
+  EXPECT_TRUE(std::filesystem::exists(output_root / "dsl_report.md"));
+  EXPECT_FALSE(std::filesystem::exists(output_root / "dsl_report.json"));
+  std::filesystem::remove_all(input_root);
+  std::filesystem::remove_all(output_root);
 }
 
 } // namespace
