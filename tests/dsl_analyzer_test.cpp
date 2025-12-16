@@ -155,8 +155,8 @@ TEST(RunReportTest, CopiesCachedReportsToOutput) {
     json << "cached json";
   }
 
-  const auto output_root = std::filesystem::temp_directory_path() /
-                           "dsl_report_output";
+  const auto output_root =
+      std::filesystem::temp_directory_path() / "dsl_report_output";
 
   const int exit_code =
       RunReport({"--root", input_root.string(), "--out", output_root.string(),

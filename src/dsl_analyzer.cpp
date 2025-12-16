@@ -262,15 +262,14 @@ void WriteReports(const std::filesystem::path &root,
 std::string ReadFileContent(const std::filesystem::path &path) {
   std::ifstream stream(path);
   if (!stream) {
-    throw std::runtime_error("Failed to open cached report: " +
-                             path.string());
+    throw std::runtime_error("Failed to open cached report: " + path.string());
   }
   return std::string(std::istreambuf_iterator<char>(stream),
                      std::istreambuf_iterator<char>());
 }
 
-std::vector<std::string> DetectAvailableReportFormats(
-    const std::filesystem::path &root) {
+std::vector<std::string>
+DetectAvailableReportFormats(const std::filesystem::path &root) {
   std::vector<std::string> formats;
   if (std::filesystem::exists(root / "dsl_report.md")) {
     formats.emplace_back("markdown");
@@ -301,8 +300,7 @@ ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
   return options;
 }
 
-ReportOptions
-ParseReportArguments(const std::vector<std::string> &arguments) {
+ReportOptions ParseReportArguments(const std::vector<std::string> &arguments) {
   ReportOptions options;
   for (std::size_t i = 0; i < arguments.size(); ++i) {
     const auto &argument = arguments[i];
@@ -573,7 +571,7 @@ void ValidateReportOptions(const ReportOptions &options) {
 
 std::vector<std::string>
 ResolveReportFormats(const ReportOptions &options,
-                    const std::filesystem::path &input_root) {
+                     const std::filesystem::path &input_root) {
   const auto available = DetectAvailableReportFormats(input_root);
   if (options.formats.empty()) {
     if (available.empty()) {
