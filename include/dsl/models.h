@@ -13,6 +13,7 @@ struct AnalysisConfig {
   std::vector<std::string> formats;
   std::string scope_notes;
   LoggingConfig logging;
+  std::vector<std::string> ignored_namespaces{"std", "testing", "gtest"};
   struct CacheConfig {
     bool enable_ast_cache = false;
     bool clean = false;

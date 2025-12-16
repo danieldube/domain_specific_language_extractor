@@ -19,7 +19,8 @@ public:
 class DslExtractor {
 public:
   virtual ~DslExtractor() = default;
-  virtual DslExtractionResult Extract(const AstIndex &index) = 0;
+  virtual DslExtractionResult Extract(const AstIndex &index,
+                                      const AnalysisConfig &config) = 0;
 };
 
 class CoherenceAnalyzer {
