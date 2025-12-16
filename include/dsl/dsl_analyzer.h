@@ -31,4 +31,3 @@ int RunCacheClean(const std::vector<std::string> &arguments);
 int RunCacheCommand(const std::vector<std::string> &arguments);
 
 } // namespace dsl
-

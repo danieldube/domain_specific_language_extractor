@@ -2,8 +2,8 @@
 #include <dsl/cli_exit_codes.h>
 #include <dsl/cmake_source_acquirer.h>
 #include <dsl/compile_commands_ast_indexer.h>
-#include <dsl/dsl_analyzer.h>
 #include <dsl/default_analyzer_pipeline.h>
+#include <dsl/dsl_analyzer.h>
 #include <dsl/heuristic_dsl_extractor.h>
 #include <dsl/markdown_reporter.h>
 #include <dsl/models.h>
