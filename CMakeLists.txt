@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
 find_library(
   LIBCLANG_LIBRARY
   NAMES clang
@@ -16,6 +18,20 @@ find_path(LIBCLANG_INCLUDE_DIR clang-c/Index.h HINTS /usr/lib/llvm-18/include
 if(NOT LIBCLANG_LIBRARY OR NOT LIBCLANG_INCLUDE_DIR)
   message(FATAL_ERROR "libclang not found. Install libclang-dev.")
 endif()
+
+FetchContent_Declare(
+  yaml-cpp
+  URL https://github.com/jbeder/yaml-cpp/archive/refs/tags/0.8.0.tar.gz)
+
+FetchContent_Declare(
+  toml11
+  URL https://github.com/ToruNiina/toml11/archive/refs/tags/v4.1.0.tar.gz)
+
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip)
+
+FetchContent_MakeAvailable(yaml-cpp toml11 googletest)
 
 add_library(
   dsl_core
@@ -88,13 +104,8 @@ target_include_directories(
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${LIBCLANG_INCLUDE_DIR})
 
-target_link_libraries(dsl_core PRIVATE ${LIBCLANG_LIBRARY})
-
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip)
-FetchContent_MakeAvailable(googletest)
+target_link_libraries(dsl_core PRIVATE ${LIBCLANG_LIBRARY} yaml-cpp
+                                      toml11::toml11)
 
 enable_testing()
 include(GoogleTest)
