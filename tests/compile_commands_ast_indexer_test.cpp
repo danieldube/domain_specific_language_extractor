@@ -99,7 +99,6 @@ TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
           Field(&AstFact::source_location, HasSubstr("example.cpp:3")))));
 }
 
-
 TEST(CompileCommandsAstIndexerTest,
      ReportsMissingCompileCommandsPathFromBuildDirectory) {
   test::TemporaryProject project;
@@ -117,8 +116,9 @@ TEST(CompileCommandsAstIndexerTest,
         try {
           (void)indexer.BuildIndex(sources);
         } catch (const std::runtime_error &error) {
-          EXPECT_THAT(error.what(),
-                      HasSubstr((build_dir / "compile_commands.json").string()));
+          EXPECT_THAT(
+              error.what(),
+              HasSubstr((build_dir / "compile_commands.json").string()));
           throw;
         }
       },
