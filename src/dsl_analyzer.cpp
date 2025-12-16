@@ -42,7 +42,8 @@ void PrintAnalyzeUsage() {
       << "  --scope-notes <text>  Scope notes to embed in the report header\n"
       << "  --config <file>       Optional YAML config file\n"
       << "  --ignored-namespaces <list>  Comma-separated namespaces to ignore\n"
-      << "                        when analyzing symbols (default: std,testing,\n"
+      << "                        when analyzing symbols (default: "
+         "std,testing,\n"
       << "                        gtest)\n"
       << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
       << "  --verbose             Shortcut for --log-level info\n"
@@ -392,11 +393,19 @@ using ConfigValue = std::variant<std::string, bool, std::vector<std::string>>;
 using RawConfig = std::unordered_map<std::string, ConfigValue>;
 
 const std::vector<std::string> &SupportedConfigKeys() {
-  static const std::vector<std::string> keys = {
-      "root",          "build",     "out",         "formats",
-      "cache_ast",     "cache_dir", "clean_cache", "log_level",
-      "scope_notes",   "extractor", "analyzer",    "reporter",
-      "ignored_namespaces"};
+  static const std::vector<std::string> keys = {"root",
+                                                "build",
+                                                "out",
+                                                "formats",
+                                                "cache_ast",
+                                                "cache_dir",
+                                                "clean_cache",
+                                                "log_level",
+                                                "scope_notes",
+                                                "extractor",
+                                                "analyzer",
+                                                "reporter",
+                                                "ignored_namespaces"};
   return keys;
 }
 

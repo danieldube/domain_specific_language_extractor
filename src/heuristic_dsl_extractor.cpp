@@ -491,12 +491,13 @@ void AppendExtractionNotes(dsl::DslExtractionResult &result) {
 
 namespace dsl {
 
-DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index,
-                                                   const AnalysisConfig &config) {
+DslExtractionResult
+HeuristicDslExtractor::Extract(const AstIndex &index,
+                               const AnalysisConfig &config) {
   DslExtractionResult result{};
   RelationshipMap relationships;
-  result.terms = BuildTerms(index, relationships, result.external_dependencies,
-                            config);
+  result.terms =
+      BuildTerms(index, relationships, result.external_dependencies, config);
   result.relationships = BuildRelationships(std::move(relationships));
   result.workflows = BuildWorkflows(result.relationships);
   result.facts = index.facts;

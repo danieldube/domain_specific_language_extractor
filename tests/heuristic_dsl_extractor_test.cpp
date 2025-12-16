@@ -94,26 +94,27 @@ TEST(HeuristicDslExtractorTest, SkipsDefaultIgnoredNamespaces) {
   AstIndex index;
   index.facts.push_back(
       MakeDefinition("std::Vector", "type", "class std::Vector"));
-  index.facts.push_back(MakeRelationshipFact("Foo", "call", "testing::Do",
-                                             AstFact::TargetScope::kInProject,
-                                             "void testing::Do()",
-                                             "calls testing::Do"));
+  index.facts.push_back(MakeRelationshipFact(
+      "Foo", "call", "testing::Do", AstFact::TargetScope::kInProject,
+      "void testing::Do()", "calls testing::Do"));
 
   HeuristicDslExtractor extractor;
   const auto result = extractor.Extract(index, MakeConfig());
 
-  EXPECT_THAT(result.terms, Not(Contains(Field(&DslTerm::name, "std..vector"))));
+  EXPECT_THAT(result.terms,
+              Not(Contains(Field(&DslTerm::name, "std..vector"))));
   EXPECT_THAT(result.relationships,
               Not(Contains(Field(&DslRelationship::object, "testing..do"))));
 }
 
 TEST(HeuristicDslExtractorTest, AllowsCustomIgnoredNamespaces) {
   AstIndex index;
+  index.facts.push_back(MakeDefinition("Bar", "function", "void Bar()"));
   index.facts.push_back(
       MakeDefinition("gtest::Suite", "type", "class gtest::Suite"));
-  index.facts.push_back(
-      MakeRelationshipFact("Bar", "call", "gtest::Suite", AstFact::TargetScope::kInProject,
-                          "void gtest::Suite()", "calls gtest::Suite"));
+  index.facts.push_back(MakeRelationshipFact(
+      "Bar", "call", "gtest::Suite", AstFact::TargetScope::kInProject,
+      "void gtest::Suite()", "calls gtest::Suite"));
 
   auto config = MakeConfig();
   config.ignored_namespaces = {"custom"};
