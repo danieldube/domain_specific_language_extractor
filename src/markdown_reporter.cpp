@@ -71,7 +71,7 @@ std::string JoinEvidenceWithBreaks(const std::vector<std::string> &items) {
     return "-";
   }
 
-  return Join(items, "<br>", [](const std::string &value) {
+  return Join(items, "<br>\n", [](const std::string &value) {
     return FormatEvidenceEntry(value);
   });
 }
@@ -147,8 +147,7 @@ std::string BuildTermsMarkdown(const DslExtractionResult &extraction) {
 
   for (const auto &term : extraction.terms) {
     section << "| " << term.name << " | " << term.kind << " | "
-            << term.definition << " | "
-            << JoinEvidenceWithBreaks(term.evidence)
+            << term.definition << " | " << JoinEvidenceWithBreaks(term.evidence)
             << " | " << JoinWithBreaks(term.aliases) << " | "
             << term.usage_count << " |\n";
   }
