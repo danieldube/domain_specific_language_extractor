@@ -4,6 +4,7 @@
 #include <dsl/caching_ast_indexer.h>
 #include <dsl/cmake_source_acquirer.h>
 #include <dsl/compile_commands_ast_indexer.h>
+#include <dsl/component_registry.h>
 #include <dsl/default_analyzer_pipeline.h>
 #include <dsl/markdown_reporter.h>
 #include <dsl/rule_based_coherence_analyzer.h>

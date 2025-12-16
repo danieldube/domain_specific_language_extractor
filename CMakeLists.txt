@@ -34,6 +34,7 @@ add_library(
   src/analyzer_pipeline_builder.cpp
   src/ast_cache.cpp
   src/caching_ast_indexer.cpp
+  src/component_registry.cpp
   src/cli_exit_codes.cpp
   src/cmake_source_acquirer.cpp
   src/compile_commands_ast_indexer.cpp
@@ -61,6 +62,7 @@ target_sources(
   PRIVATE src/analyzer_pipeline_builder.cpp
           src/ast_cache.cpp
           src/caching_ast_indexer.cpp
+          src/component_registry.cpp
           src/cli_exit_codes.cpp
           src/cmake_source_acquirer.cpp
           src/compile_commands_ast_indexer.cpp
@@ -82,6 +84,7 @@ target_sources(
          include/dsl/ast_cache.h
          include/dsl/caching_ast_indexer.h
          include/dsl/cmake_source_acquirer.h
+         include/dsl/component_registry.h
          include/dsl/cli_exit_codes.h
          include/dsl/compile_commands_ast_indexer.h
          include/dsl/default_analyzer_pipeline.h
@@ -107,6 +110,7 @@ include(GoogleTest)
 
 set(TEST_SOURCES
     tests/components_test.cpp
+    tests/component_registry_test.cpp
     tests/cmake_source_acquirer_test.cpp
     tests/markdown_reporter_test.cpp
     tests/exit_code_test.cpp

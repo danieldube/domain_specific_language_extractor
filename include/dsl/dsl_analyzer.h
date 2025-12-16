@@ -16,6 +16,9 @@ struct AnalyzeOptions {
   std::optional<std::filesystem::path> config_file;
   std::optional<std::filesystem::path> cache_directory;
   std::optional<std::string> scope_notes;
+  std::optional<std::string> extractor;
+  std::optional<std::string> analyzer;
+  std::optional<std::string> reporter;
   std::vector<std::string> formats;
   std::optional<dsl::LogLevel> log_level;
   std::optional<bool> enable_ast_cache;

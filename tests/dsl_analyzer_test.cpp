@@ -10,11 +10,12 @@ namespace {
 
 TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   const std::vector<std::string> args = {
-      "--root",        "/project/root", "--build",     "build-dir",
-      "--format",      "markdown,json", "--out",       "out-dir",
-      "--scope-notes", "notes",         "--config",    "config.yml",
-      "--log-level",   "debug",         "--cache-ast", "--clean-cache",
-      "--cache-dir",   "cache"};
+      "--root",        "/project/root",   "--build",     "build-dir",
+      "--format",      "markdown,json",   "--out",       "out-dir",
+      "--scope-notes", "notes",           "--config",    "config.yml",
+      "--log-level",   "debug",           "--cache-ast", "--clean-cache",
+      "--cache-dir",   "cache",           "--extractor", "custom-extractor",
+      "--analyzer",    "custom-analyzer", "--reporter",  "custom-reporter"};
 
   const auto options = ParseAnalyzeArguments(args);
 
@@ -34,6 +35,9 @@ TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   EXPECT_TRUE(options.clean_cache.value());
   ASSERT_TRUE(options.cache_directory);
   EXPECT_EQ(options.cache_directory->generic_string(), "cache");
+  EXPECT_EQ(options.extractor, std::optional<std::string>("custom-extractor"));
+  EXPECT_EQ(options.analyzer, std::optional<std::string>("custom-analyzer"));
+  EXPECT_EQ(options.reporter, std::optional<std::string>("custom-reporter"));
 }
 
 TEST(ParseReportArgumentsTest, ParsesFlagsAndFormats) {
@@ -63,6 +67,9 @@ TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   config_stream << "cache_dir: .dsl/cache\n";
   config_stream << "log_level: info\n";
   config_stream << "scope_notes: yaml notes\n";
+  config_stream << "extractor: yaml-extractor\n";
+  config_stream << "analyzer: yaml-analyzer\n";
+  config_stream << "reporter: yaml-reporter\n";
   config_stream.close();
 
   const auto options = ParseConfigFile(temp_config);
@@ -81,6 +88,9 @@ TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   EXPECT_EQ(options.log_level,
             std::optional<dsl::LogLevel>(dsl::LogLevel::kInfo));
   EXPECT_EQ(options.scope_notes, std::optional<std::string>("yaml notes"));
+  EXPECT_EQ(options.extractor, std::optional<std::string>("yaml-extractor"));
+  EXPECT_EQ(options.analyzer, std::optional<std::string>("yaml-analyzer"));
+  EXPECT_EQ(options.reporter, std::optional<std::string>("yaml-reporter"));
   std::filesystem::remove(temp_config);
 }
 
@@ -110,12 +120,16 @@ TEST(ResolveAnalyzeOptionsTest, CliOverridesConfig) {
   cli_options.formats = {"json"};
   cli_options.enable_ast_cache = false;
   cli_options.config_file = temp_config;
+  cli_options.extractor = "cli-extractor";
+  cli_options.reporter = "cli-reporter";
 
   const auto resolved = ResolveAnalyzeOptions(cli_options);
 
   EXPECT_EQ(resolved.root->generic_string(), "/cli/root");
   ASSERT_EQ(resolved.formats, (std::vector<std::string>{"json"}));
   EXPECT_FALSE(resolved.enable_ast_cache.value());
+  EXPECT_EQ(resolved.extractor, std::optional<std::string>("cli-extractor"));
+  EXPECT_EQ(resolved.reporter, std::optional<std::string>("cli-reporter"));
   std::filesystem::remove(temp_config);
 }
 

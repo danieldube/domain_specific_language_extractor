@@ -4,9 +4,6 @@
 #include <dsl/cmake_source_acquirer.h>
 #include <dsl/compile_commands_ast_indexer.h>
 #include <dsl/default_analyzer_pipeline.h>
-#include <dsl/heuristic_dsl_extractor.h>
-#include <dsl/markdown_reporter.h>
-#include <dsl/rule_based_coherence_analyzer.h>
 
 #include <filesystem>
 #include <utility>
@@ -26,6 +23,14 @@ EnsureComponent(std::unique_ptr<Interface> component) {
 
 namespace dsl {
 
+AnalyzerPipelineBuilder::AnalyzerPipelineBuilder(
+    const ComponentRegistry &registry)
+    : registry_(&registry) {
+  selections_.extractor = registry_->DefaultExtractorName();
+  selections_.analyzer = registry_->DefaultAnalyzerName();
+  selections_.reporter = registry_->DefaultReporterName();
+}
+
 AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
   AnalyzerPipelineBuilder builder;
   builder.WithLogger(std::make_shared<NullLogger>());
@@ -33,9 +38,6 @@ AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
       std::filesystem::path("build"), builder.components_.logger));
   builder.WithIndexer(std::make_unique<CompileCommandsAstIndexer>(
       std::filesystem::path{}, builder.components_.logger));
-  builder.WithExtractor(std::make_unique<HeuristicDslExtractor>());
-  builder.WithAnalyzer(std::make_unique<RuleBasedCoherenceAnalyzer>());
-  builder.WithReporter(std::make_unique<MarkdownReporter>());
   return builder;
 }
 
@@ -81,6 +83,24 @@ AnalyzerPipelineBuilder::WithAstCacheOptions(AstCacheOptions options) {
   return *this;
 }
 
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithExtractorName(std::string name) {
+  selections_.extractor = std::move(name);
+  return *this;
+}
+
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithAnalyzerName(std::string name) {
+  selections_.analyzer = std::move(name);
+  return *this;
+}
+
+AnalyzerPipelineBuilder &
+AnalyzerPipelineBuilder::WithReporterName(std::string name) {
+  selections_.reporter = std::move(name);
+  return *this;
+}
+
 DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
   components_.logger = EnsureLogger(std::move(components_.logger));
   components_.source_acquirer =
@@ -92,13 +112,15 @@ DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
                             ? std::move(components_.indexer)
                             : std::make_unique<CompileCommandsAstIndexer>(
                                   std::filesystem::path{}, components_.logger);
-  components_.extractor = EnsureComponent<DslExtractor, HeuristicDslExtractor>(
-      std::move(components_.extractor));
-  components_.analyzer =
-      EnsureComponent<CoherenceAnalyzer, RuleBasedCoherenceAnalyzer>(
-          std::move(components_.analyzer));
-  components_.reporter = EnsureComponent<Reporter, MarkdownReporter>(
-      std::move(components_.reporter));
+  components_.extractor =
+      components_.extractor ? std::move(components_.extractor)
+                            : registry_->CreateExtractor(selections_.extractor);
+  components_.analyzer = components_.analyzer
+                             ? std::move(components_.analyzer)
+                             : registry_->CreateAnalyzer(selections_.analyzer);
+  components_.reporter = components_.reporter
+                             ? std::move(components_.reporter)
+                             : registry_->CreateReporter(selections_.reporter);
 
   if (components_.ast_cache.enabled || components_.ast_cache.clean) {
     components_.indexer = std::make_unique<CachingAstIndexer>(

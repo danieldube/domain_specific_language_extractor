@@ -44,6 +44,9 @@ void PrintAnalyzeUsage() {
       << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
       << "  --verbose             Shortcut for --log-level info\n"
       << "  --debug               Shortcut for --log-level debug\n"
+      << "  --extractor <name>    DSL extractor plug-in to use\n"
+      << "  --analyzer <name>     Coherence analyzer plug-in to use\n"
+      << "  --reporter <name>     Reporter plug-in to render outputs\n"
       << "  --cache-ast           Enable AST caching\n"
       << "  --cache-dir <path>    Override AST cache directory\n"
       << "  --clean-cache         Remove AST cache before running\n"
@@ -186,6 +189,23 @@ void HandleFormatOption(const std::vector<std::string> &arguments,
   }
 }
 
+void HandlePluginSelection(const std::vector<std::string> &arguments,
+                           std::size_t &index, AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--extractor") {
+    options.extractor = RequireValue(arguments, index, argument);
+    return;
+  }
+  if (argument == "--analyzer") {
+    options.analyzer = RequireValue(arguments, index, argument);
+    return;
+  }
+  if (argument == "--reporter") {
+    options.reporter = RequireValue(arguments, index, argument);
+    return;
+  }
+}
+
 bool DispatchAnalyzeOption(const std::vector<std::string> &arguments,
                            std::size_t &index, AnalyzeOptions &options) {
   const auto &argument = arguments[index];
@@ -228,6 +248,12 @@ bool DispatchAnalyzeOption(const std::vector<std::string> &arguments,
   HandleCacheOption(arguments, index, options);
   if (argument == "--cache-ast" || argument == "--clean-cache" ||
       argument == "--cache-dir") {
+    return true;
+  }
+
+  HandlePluginSelection(arguments, index, options);
+  if (argument == "--extractor" || argument == "--analyzer" ||
+      argument == "--reporter") {
     return true;
   }
 
@@ -330,8 +356,9 @@ using RawConfig = std::unordered_map<std::string, ConfigValue>;
 
 const std::vector<std::string> &SupportedConfigKeys() {
   static const std::vector<std::string> keys = {
-      "root",      "build",       "out",       "formats",    "cache_ast",
-      "cache_dir", "clean_cache", "log_level", "scope_notes"};
+      "root",        "build",     "out",         "formats",
+      "cache_ast",   "cache_dir", "clean_cache", "log_level",
+      "scope_notes", "extractor", "analyzer",    "reporter"};
   return keys;
 }
 
@@ -434,7 +461,8 @@ ConfigValue ToConfigValue(const std::string &key, const YAML::Node &node) {
     return ConfigValue{ExtractBool(node, key)};
   }
   if (key == "build" || key == "out" || key == "root" || key == "cache_dir" ||
-      key == "scope_notes" || key == "log_level") {
+      key == "scope_notes" || key == "log_level" || key == "extractor" ||
+      key == "analyzer" || key == "reporter") {
     if (key == "build" || key == "out" || key == "root" || key == "cache_dir") {
       return ConfigValue{ExtractPathLike(node, key)};
     }
@@ -482,6 +510,18 @@ void ApplyConfig(const RawConfig &config, AnalyzeOptions &options) {
     }
     if (key == "log_level") {
       options.log_level = ParseLogLevel(std::get<std::string>(value));
+      continue;
+    }
+    if (key == "extractor") {
+      options.extractor = std::get<std::string>(value);
+      continue;
+    }
+    if (key == "analyzer") {
+      options.analyzer = std::get<std::string>(value);
+      continue;
+    }
+    if (key == "reporter") {
+      options.reporter = std::get<std::string>(value);
       continue;
     }
     if (key == "cache_ast") {
@@ -532,6 +572,9 @@ AnalyzeOptions MergeOptions(const AnalyzeOptions &config_options,
   override_path(merged.scope_notes, cli_options.scope_notes);
   override_path(merged.config_file, cli_options.config_file);
   override_path(merged.cache_directory, cli_options.cache_directory);
+  override_path(merged.extractor, cli_options.extractor);
+  override_path(merged.analyzer, cli_options.analyzer);
+  override_path(merged.reporter, cli_options.reporter);
 
   if (!cli_options.formats.empty()) {
     merged.formats = cli_options.formats;
@@ -658,9 +701,15 @@ BuildAnalyzePipeline(const AnalyzeOptions &options,
       ResolveBuildDirectory(options, root), logger));
   builder.WithIndexer(std::make_unique<dsl::CompileCommandsAstIndexer>(
       std::filesystem::path{}, logger));
-  builder.WithExtractor(std::make_unique<dsl::HeuristicDslExtractor>());
-  builder.WithAnalyzer(std::make_unique<dsl::RuleBasedCoherenceAnalyzer>());
-  builder.WithReporter(std::make_unique<dsl::MarkdownReporter>());
+  if (options.extractor) {
+    builder.WithExtractorName(*options.extractor);
+  }
+  if (options.analyzer) {
+    builder.WithAnalyzerName(*options.analyzer);
+  }
+  if (options.reporter) {
+    builder.WithReporterName(*options.reporter);
+  }
   builder.WithAstCacheOptions(BuildCacheOptions(options, root));
   return builder.Build();
 }
