@@ -1,15 +1,11 @@
-#include <dsl/default_components.h>
-#include <dsl/heuristic_dsl_extractor.h>
+#include <dsl/rule_based_coherence_analyzer.h>
 
 #include <algorithm>
 #include <cctype>
-#include <chrono>
-#include <filesystem>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
-
-#include <memory>
-#include <utility>
+#include <vector>
 
 namespace {
 
@@ -43,15 +39,6 @@ void AddRelationshipMissingFinding(const dsl::DslExtractionResult &extraction,
   finding.suggested_canonical_form = term.name;
   finding.description = finding.conflict;
   result.findings.push_back(finding);
-}
-
-template <typename Interface, typename Implementation>
-std::unique_ptr<Interface>
-EnsureComponent(std::unique_ptr<Interface> component) {
-  if (component) {
-    return component;
-  }
-  return std::make_unique<Implementation>();
 }
 
 std::unordered_map<std::string, int>
@@ -203,12 +190,8 @@ void AddCanonicalizationInconsistencyFindings(
     finding.term = canonical;
     finding.conflict =
         "Inconsistent canonicalization detected for equivalent terms.";
-    std::string example = "Variants:";
-    for (const auto &name : names) {
-      example.append(" " + name);
-    }
-    finding.examples.push_back(example);
-    finding.suggested_canonical_form = canonical;
+    finding.examples.insert(finding.examples.end(), names.begin(), names.end());
+    finding.suggested_canonical_form = *names.begin();
     finding.description = finding.conflict;
     result.findings.push_back(finding);
   }
@@ -315,6 +298,9 @@ void CollectIntentFacts(const std::vector<dsl::AstFact> &facts,
       behavior.mutation_evidence.push_back(FactEvidence(fact));
     }
     if (fact.kind == "call") {
+      if (fact.target.empty()) {
+        continue;
+      }
       const auto target = CanonicalizeName(fact.target);
       context.call_targets[canonical_name].push_back(target);
       const auto key = CallKey(canonical_name, target);
@@ -323,6 +309,25 @@ void CollectIntentFacts(const std::vector<dsl::AstFact> &facts,
       }
     }
   }
+}
+
+bool HasTargetWithSuffix(const std::vector<std::string> &targets,
+                         const std::string &suffix) {
+  return std::any_of(
+      targets.begin(), targets.end(), [&](const std::string &target) {
+        return target.size() >= suffix.size() &&
+               target.rfind(suffix) == target.size() - suffix.size();
+      });
+}
+
+bool HasTargetWithSuffix(
+    const std::unordered_map<std::string, std::vector<std::string>> &targets,
+    const std::string &function, const std::string &suffix) {
+  const auto it = targets.find(function);
+  if (it == targets.end()) {
+    return false;
+  }
+  return HasTargetWithSuffix(it->second, suffix);
 }
 
 void AddGetterFindings(const IntentAnalysisContext &context,
@@ -476,137 +481,6 @@ RuleBasedCoherenceAnalyzer::Analyze(const DslExtractionResult &extraction) {
     result.severity = CoherenceSeverity::kIncoherent;
   }
   return result;
-}
-AnalyzerPipelineBuilder AnalyzerPipelineBuilder::WithDefaults() {
-  AnalyzerPipelineBuilder builder;
-  builder.WithLogger(std::make_shared<NullLogger>());
-  builder.WithSourceAcquirer(std::make_unique<CMakeSourceAcquirer>(
-      std::filesystem::path("build"), builder.components_.logger));
-  builder.WithIndexer(std::make_unique<CompileCommandsAstIndexer>(
-      std::filesystem::path{}, builder.components_.logger));
-  builder.WithExtractor(std::make_unique<HeuristicDslExtractor>());
-  builder.WithAnalyzer(std::make_unique<RuleBasedCoherenceAnalyzer>());
-  builder.WithReporter(std::make_unique<MarkdownReporter>());
-  return builder;
-}
-
-AnalyzerPipelineBuilder &AnalyzerPipelineBuilder::WithSourceAcquirer(
-    std::unique_ptr<SourceAcquirer> source_acquirer) {
-  components_.source_acquirer = std::move(source_acquirer);
-  return *this;
-}
-
-AnalyzerPipelineBuilder &
-AnalyzerPipelineBuilder::WithIndexer(std::unique_ptr<AstIndexer> indexer) {
-  components_.indexer = std::move(indexer);
-  return *this;
-}
-
-AnalyzerPipelineBuilder &AnalyzerPipelineBuilder::WithExtractor(
-    std::unique_ptr<DslExtractor> extractor) {
-  components_.extractor = std::move(extractor);
-  return *this;
-}
-
-AnalyzerPipelineBuilder &AnalyzerPipelineBuilder::WithAnalyzer(
-    std::unique_ptr<CoherenceAnalyzer> analyzer) {
-  components_.analyzer = std::move(analyzer);
-  return *this;
-}
-
-AnalyzerPipelineBuilder &
-AnalyzerPipelineBuilder::WithReporter(std::unique_ptr<Reporter> reporter) {
-  components_.reporter = std::move(reporter);
-  return *this;
-}
-
-AnalyzerPipelineBuilder &
-AnalyzerPipelineBuilder::WithLogger(std::shared_ptr<Logger> logger) {
-  components_.logger = std::move(logger);
-  return *this;
-}
-
-AnalyzerPipelineBuilder &
-AnalyzerPipelineBuilder::WithAstCacheOptions(AstCacheOptions options) {
-  components_.ast_cache = std::move(options);
-  return *this;
-}
-
-DefaultAnalyzerPipeline AnalyzerPipelineBuilder::Build() {
-  components_.logger = EnsureLogger(std::move(components_.logger));
-  components_.source_acquirer =
-      components_.source_acquirer
-          ? std::move(components_.source_acquirer)
-          : std::make_unique<CMakeSourceAcquirer>(
-                std::filesystem::path("build"), components_.logger);
-  components_.indexer = components_.indexer
-                            ? std::move(components_.indexer)
-                            : std::make_unique<CompileCommandsAstIndexer>(
-                                  std::filesystem::path{}, components_.logger);
-  components_.extractor = EnsureComponent<DslExtractor, HeuristicDslExtractor>(
-      std::move(components_.extractor));
-  components_.analyzer =
-      EnsureComponent<CoherenceAnalyzer, RuleBasedCoherenceAnalyzer>(
-          std::move(components_.analyzer));
-  components_.reporter = EnsureComponent<Reporter, MarkdownReporter>(
-      std::move(components_.reporter));
-
-  if (components_.ast_cache.enabled || components_.ast_cache.clean) {
-    components_.indexer = std::make_unique<CachingAstIndexer>(
-        std::move(components_.indexer), components_.ast_cache,
-        components_.logger);
-  }
-  return DefaultAnalyzerPipeline(std::move(components_));
-}
-
-DefaultAnalyzerPipeline::DefaultAnalyzerPipeline(PipelineComponents components)
-    : source_acquirer_(std::move(components.source_acquirer)),
-      indexer_(std::move(components.indexer)),
-      extractor_(std::move(components.extractor)),
-      analyzer_(std::move(components.analyzer)),
-      reporter_(std::move(components.reporter)),
-      logger_(EnsureLogger(std::move(components.logger))),
-      ast_cache_(std::move(components.ast_cache)) {}
-
-PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig &config) {
-  logger_->Log(LogLevel::kInfo, "pipeline.start",
-               {{"root", config.root_path},
-                {"formats", std::to_string(config.formats.size())}});
-
-  const auto pipeline_start = std::chrono::steady_clock::now();
-  const auto sources = source_acquirer_->Acquire(config);
-  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
-               {{"stage", "source"},
-                {"file_count", std::to_string(sources.files.size())}});
-
-  const auto index = indexer_->BuildIndex(sources);
-  logger_->Log(
-      LogLevel::kDebug, "pipeline.stage.complete",
-      {{"stage", "index"}, {"facts", std::to_string(index.facts.size())}});
-
-  const auto extraction = extractor_->Extract(index);
-  logger_->Log(
-      LogLevel::kDebug, "pipeline.stage.complete",
-      {{"stage", "extract"},
-       {"terms", std::to_string(extraction.terms.size())},
-       {"relationships", std::to_string(extraction.relationships.size())}});
-
-  const auto coherence = analyzer_->Analyze(extraction);
-  logger_->Log(LogLevel::kDebug, "pipeline.stage.complete",
-               {{"stage", "analyze"},
-                {"findings", std::to_string(coherence.findings.size())}});
-
-  const auto report = reporter_->Render(extraction, coherence, config);
-
-  const auto duration_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::steady_clock::now() - pipeline_start)
-          .count();
-  logger_->Log(LogLevel::kInfo, "pipeline.complete",
-               {{"duration_ms", std::to_string(duration_ms)},
-                {"findings", std::to_string(coherence.findings.size())}});
-
-  return PipelineResult{report, coherence, extraction};
 }
 
 } // namespace dsl

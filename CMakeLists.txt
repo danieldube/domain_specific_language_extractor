@@ -19,15 +19,18 @@ endif()
 
 add_library(
   dsl_core
+  src/analyzer_pipeline_builder.cpp
   src/ast_cache.cpp
+  src/caching_ast_indexer.cpp
   src/cli_exit_codes.cpp
-  src/default_components.cpp
-  src/escaping.cpp
-  src/logging.cpp
-  src/heuristic_dsl_extractor.cpp
   src/cmake_source_acquirer.cpp
+  src/compile_commands_ast_indexer.cpp
+  src/default_analyzer_pipeline.cpp
+  src/escaping.cpp
+  src/heuristic_dsl_extractor.cpp
+  src/logging.cpp
   src/markdown_reporter.cpp
-  src/compile_commands_ast_indexer.cpp)
+  src/rule_based_coherence_analyzer.cpp)
 
 add_executable(dsl_analyzer src/dsl_analyzer.cpp)
 set_target_properties(dsl_analyzer PROPERTIES OUTPUT_NAME "dsl-extract")
@@ -42,9 +45,18 @@ install(TARGETS dsl_analyzer RUNTIME DESTINATION bin)
 
 target_sources(
   dsl_core
-  PRIVATE src/default_components.cpp src/heuristic_dsl_extractor.cpp
-          src/ast_cache.cpp src/cmake_source_acquirer.cpp src/escaping.cpp
+  PRIVATE src/analyzer_pipeline_builder.cpp
+          src/ast_cache.cpp
+          src/caching_ast_indexer.cpp
+          src/cli_exit_codes.cpp
+          src/cmake_source_acquirer.cpp
+          src/compile_commands_ast_indexer.cpp
+          src/default_analyzer_pipeline.cpp
+          src/escaping.cpp
+          src/heuristic_dsl_extractor.cpp
+          src/logging.cpp
           src/markdown_reporter.cpp
+          src/rule_based_coherence_analyzer.cpp
   PUBLIC FILE_SET
          HEADERS
          TYPE
@@ -52,14 +64,21 @@ target_sources(
          BASE_DIRS
          ${CMAKE_CURRENT_SOURCE_DIR}/include
          FILES
+         include/dsl/analyzer_pipeline_builder.h
          include/dsl/ast_cache.h
+         include/dsl/caching_ast_indexer.h
+         include/dsl/cmake_source_acquirer.h
+         include/dsl/cli_exit_codes.h
+         include/dsl/compile_commands_ast_indexer.h
+         include/dsl/default_analyzer_pipeline.h
          include/dsl/default_components.h
          include/dsl/escaping.h
-         include/dsl/logging.h
-         include/dsl/cli_exit_codes.h
          include/dsl/heuristic_dsl_extractor.h
          include/dsl/interfaces.h
-         include/dsl/models.h)
+         include/dsl/logging.h
+         include/dsl/markdown_reporter.h
+         include/dsl/models.h
+         include/dsl/rule_based_coherence_analyzer.h)
 
 target_include_directories(
   dsl_core

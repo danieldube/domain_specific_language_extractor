@@ -1,4 +1,4 @@
-#include <dsl/default_components.h>
+#include <dsl/compile_commands_ast_indexer.h>
 #include <dsl/models.h>
 
 #include <filesystem>
