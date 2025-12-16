@@ -48,9 +48,8 @@ void ApplyConfigEntry(const ConfigEntry &entry, AnalyzeOptions &options);
 
 CacheCleanOptions
 ParseCacheCleanArguments(const std::vector<std::string> &arguments);
-std::filesystem::path
-ResolveCacheDirectory(const CacheCleanOptions &options,
-                      const std::filesystem::path &root);
+std::filesystem::path ResolveCacheDirectory(const CacheCleanOptions &options,
+                                            const std::filesystem::path &root);
 bool RemoveCacheDirectory(const std::filesystem::path &path);
 
 int RunAnalyze(const std::vector<std::string> &arguments);

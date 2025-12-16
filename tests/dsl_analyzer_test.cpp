@@ -10,11 +10,11 @@ namespace {
 
 TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   const std::vector<std::string> args = {
-      "--root",        "/project/root",   "--build",   "build-dir",
-      "--format",      "markdown,json",   "--out",     "out-dir",
-      "--scope-notes", "notes",          "--config",  "config.yml",
-      "--log-level",   "debug",          "--cache-ast",
-      "--clean-cache", "--cache-dir",     "cache"};
+      "--root",        "/project/root", "--build",     "build-dir",
+      "--format",      "markdown,json", "--out",       "out-dir",
+      "--scope-notes", "notes",         "--config",    "config.yml",
+      "--log-level",   "debug",         "--cache-ast", "--clean-cache",
+      "--cache-dir",   "cache"};
 
   const auto options = ParseAnalyzeArguments(args);
 
@@ -26,10 +26,10 @@ TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   EXPECT_EQ(options.output_directory->generic_string(), "out-dir");
   ASSERT_TRUE(options.config_file);
   EXPECT_EQ(options.config_file->generic_string(), "config.yml");
-  ASSERT_EQ(options.formats,
-            (std::vector<std::string>{"markdown", "json"}));
+  ASSERT_EQ(options.formats, (std::vector<std::string>{"markdown", "json"}));
   EXPECT_EQ(options.scope_notes, std::optional<std::string>("notes"));
-  EXPECT_EQ(options.log_level, std::optional<dsl::LogLevel>(dsl::LogLevel::kDebug));
+  EXPECT_EQ(options.log_level,
+            std::optional<dsl::LogLevel>(dsl::LogLevel::kDebug));
   EXPECT_TRUE(options.enable_ast_cache.value());
   EXPECT_TRUE(options.clean_cache.value());
   ASSERT_TRUE(options.cache_directory);
@@ -49,8 +49,8 @@ TEST(ParseConfigLineTest, RejectsMissingDelimiters) {
 }
 
 TEST(ParseConfigFileTest, CombinesConfigEntries) {
-  const auto temp_config = std::filesystem::temp_directory_path() /
-                           "dsl_analyzer_config_test.toml";
+  const auto temp_config =
+      std::filesystem::temp_directory_path() / "dsl_analyzer_config_test.toml";
   std::ofstream config_stream(temp_config);
   config_stream << "root = /from/config\n";
   config_stream << "formats = [markdown,json]\n";
@@ -62,8 +62,7 @@ TEST(ParseConfigFileTest, CombinesConfigEntries) {
 
   ASSERT_TRUE(options.root);
   EXPECT_EQ(options.root->generic_string(), "/from/config");
-  ASSERT_EQ(options.formats,
-            (std::vector<std::string>{"markdown", "json"}));
+  ASSERT_EQ(options.formats, (std::vector<std::string>{"markdown", "json"}));
   EXPECT_EQ(options.enable_ast_cache, std::optional<bool>(true));
   EXPECT_EQ(options.scope_notes, std::optional<std::string>("with notes"));
   std::filesystem::remove(temp_config);

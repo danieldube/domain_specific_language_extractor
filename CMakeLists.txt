@@ -30,9 +30,10 @@ add_library(
   src/heuristic_dsl_extractor.cpp
   src/logging.cpp
   src/markdown_reporter.cpp
-  src/rule_based_coherence_analyzer.cpp)
+  src/rule_based_coherence_analyzer.cpp
+  src/dsl_analyzer.cpp)
 
-add_executable(dsl_analyzer src/dsl_analyzer.cpp)
+add_executable(dsl_analyzer src/dsl_main.cpp)
 set_target_properties(dsl_analyzer PROPERTIES OUTPUT_NAME "dsl-extract")
 add_custom_command(
   TARGET dsl_analyzer
@@ -57,6 +58,7 @@ target_sources(
           src/logging.cpp
           src/markdown_reporter.cpp
           src/rule_based_coherence_analyzer.cpp
+          src/dsl_analyzer.cpp
   PUBLIC FILE_SET
          HEADERS
          TYPE
