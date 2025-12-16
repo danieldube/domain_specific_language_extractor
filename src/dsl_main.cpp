@@ -15,7 +15,7 @@ void PrintGlobalUsage() {
       << "  cache     Manage caches (subcommands: clean).\n\n"
       << "Run 'dsl-extract analyze --help' for analysis options.\n";
 }
-}
+} // namespace
 
 int main(int argc, char **argv) {
   try {
