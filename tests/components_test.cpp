@@ -1,4 +1,5 @@
 #include <dsl/analyzer_pipeline_builder.h>
+#include <dsl/default_analyzer_pipeline.h>
 #include <dsl/heuristic_dsl_extractor.h>
 #include <dsl/interfaces.h>
 #include <dsl/models.h>

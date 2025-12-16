@@ -45,12 +45,18 @@ install(TARGETS dsl_analyzer RUNTIME DESTINATION bin)
 
 target_sources(
   dsl_core
-  PRIVATE src/analyzer_pipeline_builder.cpp src/ast_cache.cpp
-          src/caching_ast_indexer.cpp src/cli_exit_codes.cpp
-          src/cmake_source_acquirer.cpp src/compile_commands_ast_indexer.cpp
-          src/default_analyzer_pipeline.cpp src/escaping.cpp
-          src/heuristic_dsl_extractor.cpp src/logging.cpp
-          src/markdown_reporter.cpp src/rule_based_coherence_analyzer.cpp
+  PRIVATE src/analyzer_pipeline_builder.cpp
+          src/ast_cache.cpp
+          src/caching_ast_indexer.cpp
+          src/cli_exit_codes.cpp
+          src/cmake_source_acquirer.cpp
+          src/compile_commands_ast_indexer.cpp
+          src/default_analyzer_pipeline.cpp
+          src/escaping.cpp
+          src/heuristic_dsl_extractor.cpp
+          src/logging.cpp
+          src/markdown_reporter.cpp
+          src/rule_based_coherence_analyzer.cpp
   PUBLIC FILE_SET
          HEADERS
          TYPE

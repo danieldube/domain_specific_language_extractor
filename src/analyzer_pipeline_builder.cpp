@@ -14,8 +14,8 @@
 namespace {
 
 template <typename Interface, typename Implementation>
-std::unique_ptr<Interface> EnsureComponent(
-    std::unique_ptr<Interface> component) {
+std::unique_ptr<Interface>
+EnsureComponent(std::unique_ptr<Interface> component) {
   if (component) {
     return component;
   }

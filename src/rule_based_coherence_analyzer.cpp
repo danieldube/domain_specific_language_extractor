@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -190,7 +189,7 @@ void AddCanonicalizationInconsistencyFindings(
     dsl::Finding finding{};
     finding.term = canonical;
     finding.conflict =
-        "Canonicalization inconsistency detected across multiple names.";
+        "Inconsistent canonicalization detected for equivalent terms.";
     finding.examples.insert(finding.examples.end(), names.begin(), names.end());
     finding.suggested_canonical_form = *names.begin();
     finding.description = finding.conflict;
@@ -198,34 +197,127 @@ void AddCanonicalizationInconsistencyFindings(
   }
 }
 
+std::string Trim(std::string value) {
+  const auto is_space = [](unsigned char character) {
+    return std::isspace(character) != 0;
+  };
+  value.erase(value.begin(), std::find_if(value.begin(), value.end(),
+                                          [&](unsigned char character) {
+                                            return !is_space(character);
+                                          }));
+  value.erase(std::find_if(
+                  value.rbegin(), value.rend(),
+                  [&](unsigned char character) { return !is_space(character); })
+                  .base(),
+              value.end());
+  return value;
+}
+
+bool StartsWithInsensitive(const std::string &value,
+                           const std::string &prefix) {
+  if (value.size() < prefix.size()) {
+    return false;
+  }
+  for (std::size_t index = 0; index < prefix.size(); ++index) {
+    if (std::tolower(static_cast<unsigned char>(value[index])) !=
+        std::tolower(static_cast<unsigned char>(prefix[index]))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::string ExtractReturnType(const std::string &signature) {
+  const auto paren_position = signature.find('(');
+  if (paren_position == std::string::npos) {
+    return {};
+  }
+  const auto prefix = signature.substr(0, paren_position);
+  const auto last_space = prefix.find_last_of(' ');
+  if (last_space == std::string::npos) {
+    return Trim(prefix);
+  }
+  return Trim(prefix.substr(0, last_space));
+}
+
+bool IsBoolType(const std::string &type) {
+  const auto normalized = CanonicalizeName(type);
+  return normalized == "bool" || normalized == "const bool";
+}
+
+bool IsVoidType(const std::string &type) {
+  const auto normalized = CanonicalizeName(type);
+  return normalized == "void";
+}
+
+bool IsMutationKind(const std::string &kind) {
+  const auto normalized = CanonicalizeName(kind);
+  return normalized == "mutation" || normalized == "assignment" ||
+         normalized == "state_change";
+}
+
+std::string FactEvidence(const dsl::AstFact &fact) {
+  if (!fact.source_location.empty()) {
+    return fact.source_location;
+  }
+  if (!fact.descriptor.empty()) {
+    return fact.descriptor;
+  }
+  return fact.signature;
+}
+
+struct FunctionBehavior {
+  bool has_mutation = false;
+  std::vector<std::string> mutation_evidence;
+  std::string return_type;
+  std::string signature_evidence;
+};
+
 struct IntentAnalysisContext {
+  std::unordered_map<std::string, FunctionBehavior> functions;
   std::unordered_map<std::string, std::vector<std::string>> call_targets;
-  std::unordered_map<std::string, std::vector<std::string>> call_evidence;
-  std::unordered_map<std::string, std::vector<std::string>> predicate_targets;
+  std::unordered_map<std::string, std::string> call_evidence;
 };
 
 std::string CallKey(const std::string &caller, const std::string &target) {
   return caller + "->" + target;
 }
 
-void CollectIntentFacts(const std::vector<dsl::DslFact> &facts,
+void CollectIntentFacts(const std::vector<dsl::AstFact> &facts,
                         IntentAnalysisContext &context) {
   for (const auto &fact : facts) {
-    if (fact.kind != "call") {
-      continue;
-    }
-    if (fact.target.empty()) {
-      continue;
-    }
+    const auto canonical_name = CanonicalizeName(fact.name);
+    auto &behavior = context.functions[canonical_name];
 
-    const auto key = CallKey(fact.name, fact.target);
-    context.call_targets[fact.name].push_back(fact.target);
-    context.call_evidence[key].push_back(fact.evidence);
-
-    if (fact.target.find("Is") == 0 || fact.target.find("Has") == 0) {
-      context.predicate_targets[fact.name].push_back(fact.target);
+    if (fact.kind == "function") {
+      behavior.return_type = ExtractReturnType(fact.signature);
+      behavior.signature_evidence = FactEvidence(fact);
+    }
+    if (IsMutationKind(fact.kind)) {
+      behavior.has_mutation = true;
+      behavior.mutation_evidence.push_back(FactEvidence(fact));
+    }
+    if (fact.kind == "call") {
+      if (fact.target.empty()) {
+        continue;
+      }
+      const auto target = CanonicalizeName(fact.target);
+      context.call_targets[canonical_name].push_back(target);
+      const auto key = CallKey(canonical_name, target);
+      if (context.call_evidence.find(key) == context.call_evidence.end()) {
+        context.call_evidence.emplace(key, FactEvidence(fact));
+      }
     }
   }
+}
+
+bool HasTargetWithSuffix(const std::vector<std::string> &targets,
+                         const std::string &suffix) {
+  return std::any_of(
+      targets.begin(), targets.end(), [&](const std::string &target) {
+        return target.size() >= suffix.size() &&
+               target.rfind(suffix) == target.size() - suffix.size();
+      });
 }
 
 bool HasTargetWithSuffix(
@@ -235,105 +327,102 @@ bool HasTargetWithSuffix(
   if (it == targets.end()) {
     return false;
   }
-
-  return std::any_of(it->second.begin(), it->second.end(),
-                     [&](const std::string &target) {
-                       return target.size() >= suffix.size() &&
-                              target.rfind(suffix) == target.size() -
-                                                      suffix.size();
-                     });
+  return HasTargetWithSuffix(it->second, suffix);
 }
 
 void AddGetterFindings(const IntentAnalysisContext &context,
                        dsl::CoherenceResult &result) {
-  for (const auto &[caller, targets] : context.call_targets) {
-    if (!HasTargetWithSuffix(context.call_targets, caller, "Get") ||
-        HasTargetWithSuffix(context.call_targets, caller, "Set")) {
+  for (const auto &[name, behavior] : context.functions) {
+    if (!StartsWithInsensitive(name, "get")) {
       continue;
     }
-
-    if (HasTargetWithSuffix(context.predicate_targets, caller, "Is") ||
-        HasTargetWithSuffix(context.predicate_targets, caller, "Has")) {
-      continue;
+    if (behavior.has_mutation) {
+      dsl::Finding finding{};
+      finding.term = name;
+      finding.conflict = "Getter mutates state; expected no mutations.";
+      if (!behavior.mutation_evidence.empty()) {
+        finding.examples.push_back(behavior.mutation_evidence.front());
+      }
+      finding.suggested_canonical_form = name;
+      finding.description = finding.conflict;
+      result.findings.push_back(finding);
     }
-
-    dsl::Finding finding{};
-    finding.term = caller;
-    finding.conflict =
-        "Getter without predicate suggests incomplete state validation.";
-    const auto &evidence = context.call_evidence.find(CallKey(caller, "Get"));
-    if (evidence != context.call_evidence.end()) {
-      finding.examples.push_back(evidence->second.front());
+    if (!behavior.return_type.empty() && IsVoidType(behavior.return_type)) {
+      dsl::Finding finding{};
+      finding.term = name;
+      finding.conflict = "Getter returns void; expected a value result.";
+      if (!behavior.signature_evidence.empty()) {
+        finding.examples.push_back(behavior.signature_evidence);
+      }
+      finding.suggested_canonical_form = name;
+      finding.description = finding.conflict;
+      result.findings.push_back(finding);
     }
-    finding.suggested_canonical_form = caller;
-    finding.description = finding.conflict;
-    result.findings.push_back(finding);
   }
 }
 
 void AddSetterFindings(const IntentAnalysisContext &context,
                        dsl::CoherenceResult &result) {
-  for (const auto &[caller, targets] : context.call_targets) {
-    if (!HasTargetWithSuffix(context.call_targets, caller, "Set") ||
-        HasTargetWithSuffix(context.call_targets, caller, "Get")) {
+  for (const auto &[name, behavior] : context.functions) {
+    if (!StartsWithInsensitive(name, "set")) {
       continue;
     }
-
-    dsl::Finding finding{};
-    finding.term = caller;
-    finding.conflict =
-        "Setter without getter suggests incomplete state encapsulation.";
-    const auto &evidence = context.call_evidence.find(CallKey(caller, "Set"));
-    if (evidence != context.call_evidence.end()) {
-      finding.examples.push_back(evidence->second.front());
+    if (behavior.has_mutation) {
+      continue;
     }
-    finding.suggested_canonical_form = caller;
+    dsl::Finding finding{};
+    finding.term = name;
+    finding.conflict = "Setter lacks mutations; expected state change.";
+    if (!behavior.signature_evidence.empty()) {
+      finding.examples.push_back(behavior.signature_evidence);
+    }
+    finding.suggested_canonical_form = name;
     finding.description = finding.conflict;
     result.findings.push_back(finding);
   }
-}
-
-bool HasLifecycleClosure(
-    const std::unordered_map<std::string, std::vector<std::string>> &targets,
-    const std::string &suffix) {
-  const auto closes = suffix + "Close";
-  const auto finishes = suffix + "Finish";
-  const auto destroys = suffix + "Destroy";
-  const auto commits = suffix + "Commit";
-
-  return std::any_of(targets.begin(), targets.end(),
-                     [&](const auto &entry) {
-                       return HasTargetWithSuffix(targets, entry.first, closes) ||
-                              HasTargetWithSuffix(targets, entry.first,
-                                                  finishes) ||
-                              HasTargetWithSuffix(targets, entry.first,
-                                                  destroys) ||
-                              HasTargetWithSuffix(targets, entry.first,
-                                                  commits);
-                     });
 }
 
 void AddPredicateFindings(const IntentAnalysisContext &context,
                           dsl::CoherenceResult &result) {
-  for (const auto &[caller, predicates] : context.predicate_targets) {
-    if (HasTargetWithSuffix(context.call_targets, caller, "Get") ||
-        HasTargetWithSuffix(context.call_targets, caller, "Set")) {
+  for (const auto &[name, behavior] : context.functions) {
+    const bool is_predicate =
+        StartsWithInsensitive(name, "is") || StartsWithInsensitive(name, "has");
+    if (!is_predicate) {
       continue;
     }
 
-    dsl::Finding finding{};
-    finding.term = caller;
-    finding.conflict =
-        "Predicate without getter/setter suggests unclear state ownership.";
-    const auto &evidence =
-        context.call_evidence.find(CallKey(caller, predicates.front()));
-    if (evidence != context.call_evidence.end()) {
-      finding.examples.push_back(evidence->second.front());
+    if (!behavior.return_type.empty() && !IsBoolType(behavior.return_type)) {
+      dsl::Finding finding{};
+      finding.term = name;
+      finding.conflict = "Predicate does not return bool; intent unclear.";
+      if (!behavior.signature_evidence.empty()) {
+        finding.examples.push_back(behavior.signature_evidence);
+      }
+      finding.suggested_canonical_form = name;
+      finding.description = finding.conflict;
+      result.findings.push_back(finding);
     }
-    finding.suggested_canonical_form = caller;
-    finding.description = finding.conflict;
-    result.findings.push_back(finding);
+
+    if (behavior.has_mutation) {
+      dsl::Finding finding{};
+      finding.term = name;
+      finding.conflict = "Predicate mutates state; expected to be pure.";
+      if (!behavior.mutation_evidence.empty()) {
+        finding.examples.push_back(behavior.mutation_evidence.front());
+      }
+      finding.suggested_canonical_form = name;
+      finding.description = finding.conflict;
+      result.findings.push_back(finding);
+    }
   }
+}
+
+bool HasLifecycleClosure(const std::vector<std::string> &targets,
+                         const std::string &suffix) {
+  return std::any_of(
+      targets.begin(), targets.end(), [&](const std::string &target) {
+        return target == "close" + suffix || target == "teardown" + suffix;
+      });
 }
 
 void AddLifecycleFindings(const IntentAnalysisContext &context,
@@ -341,9 +430,8 @@ void AddLifecycleFindings(const IntentAnalysisContext &context,
   for (const auto &[caller, targets] : context.call_targets) {
     for (const auto &target : targets) {
       std::string suffix;
-      if (target.find("Init") == 0) {
-        suffix = target.substr(4);
-      } else if (target.find("Open") == 0) {
+      if (StartsWithInsensitive(target, "open") ||
+          StartsWithInsensitive(target, "init")) {
         suffix = target.substr(4);
       } else {
         continue;
