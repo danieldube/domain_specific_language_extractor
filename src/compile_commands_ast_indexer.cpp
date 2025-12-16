@@ -273,6 +273,29 @@ private:
 
   void AddFact(AstFact fact) { facts_.push_back(std::move(fact)); }
 
+  AstFact::TargetScope DetermineTargetScope(CXCursor cursor,
+                                            std::string &location) const {
+    const auto cursor_location = clang_getCursorLocation(cursor);
+    const auto path = PathFromLocation(cursor_location);
+    if (!path.has_value()) {
+      return AstFact::TargetScope::kUnknown;
+    }
+    location = FormatRange(clang_getCursorExtent(cursor));
+    if (IsWithin(*path, project_root_)) {
+      return AstFact::TargetScope::kInProject;
+    }
+    return AstFact::TargetScope::kExternal;
+  }
+
+  AstFact::TargetScope DetermineTargetScope(CXType type,
+                                            std::string &location) const {
+    const auto declaration = clang_getTypeDeclaration(type);
+    if (clang_Cursor_isNull(declaration)) {
+      return AstFact::TargetScope::kUnknown;
+    }
+    return DetermineTargetScope(declaration, location);
+  }
+
   void AddSymbolFact(CXCursor cursor, const std::string &kind) {
     if (!clang_isCursorDefinition(cursor)) {
       return;
@@ -285,6 +308,7 @@ private:
     fact.descriptor = fact.signature;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.subject_in_project = true;
     AddFact(std::move(fact));
   }
 
@@ -302,6 +326,9 @@ private:
     fact.signature = fact.descriptor + ": " + fact.target;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.subject_in_project = true;
+    fact.target_scope =
+        DetermineTargetScope(clang_getCursorType(cursor), fact.target_location);
     AddFact(std::move(fact));
   }
 
@@ -328,6 +355,8 @@ private:
     fact.descriptor = "calls " + target_name;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.subject_in_project = true;
+    fact.target_scope = DetermineTargetScope(referenced, fact.target_location);
     AddFact(std::move(fact));
   }
 
@@ -350,6 +379,9 @@ private:
     fact.signature = fact.descriptor;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.subject_in_project = true;
+    fact.target_scope =
+        DetermineTargetScope(clang_getCursorType(cursor), fact.target_location);
     AddFact(std::move(fact));
   }
 

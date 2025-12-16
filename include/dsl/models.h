@@ -36,6 +36,13 @@ struct AstFact {
   std::string descriptor;
   std::string target;
   std::string range;
+  bool subject_in_project = false;
+  enum class TargetScope {
+    kUnknown,
+    kInProject,
+    kExternal,
+  } target_scope = TargetScope::kUnknown;
+  std::string target_location;
 };
 
 struct AstIndex {
@@ -62,6 +69,7 @@ struct DslRelationship {
 
 struct DslExtractionResult {
   std::vector<DslTerm> terms;
+  std::vector<DslTerm> external_dependencies;
   std::vector<DslRelationship> relationships;
   std::vector<std::string> extraction_notes;
   std::vector<AstFact> facts;

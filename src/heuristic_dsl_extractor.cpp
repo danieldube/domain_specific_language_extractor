@@ -54,6 +54,42 @@ std::string CanonicalizeName(std::string name) {
   return name;
 }
 
+class ScopeFilter {
+public:
+  explicit ScopeFilter(const dsl::AstIndex &index) {
+    for (const auto &fact : index.facts) {
+      if (!fact.subject_in_project) {
+        continue;
+      }
+      if (fact.kind == "function" || fact.kind == "type" ||
+          fact.kind == "variable") {
+        in_project_symbols_.insert(CanonicalizeName(fact.name));
+      }
+    }
+  }
+
+  bool SubjectInScope(const dsl::AstFact &fact) const {
+    return fact.subject_in_project &&
+           in_project_symbols_.count(CanonicalizeName(fact.name)) > 0;
+  }
+
+  bool TargetInScope(const dsl::AstFact &fact) const {
+    if (fact.target_scope == dsl::AstFact::TargetScope::kExternal) {
+      return false;
+    }
+    if (fact.target_scope == dsl::AstFact::TargetScope::kInProject) {
+      return true;
+    }
+    if (fact.target.empty()) {
+      return true;
+    }
+    return in_project_symbols_.count(CanonicalizeName(fact.target)) > 0;
+  }
+
+private:
+  std::unordered_set<std::string> in_project_symbols_;
+};
+
 std::string EvidenceLocation(const dsl::AstFact &fact) {
   if (fact.source_location.empty()) {
     return fact.range;
@@ -209,8 +245,10 @@ void UpdateRelationshipNotes(const ParsedKind &parsed,
 }
 
 void TrackRelationship(const dsl::AstFact &fact, const ParsedKind &parsed,
-                       RelationshipMap &relationships) {
-  if (!parsed.relationship_target.has_value()) {
+                       RelationshipMap &relationships,
+                       const ScopeFilter &scope_filter) {
+  if (!parsed.relationship_target.has_value() ||
+      !scope_filter.TargetInScope(fact)) {
     return;
   }
   const auto key = MakeRelationshipKey(fact, parsed);
@@ -222,8 +260,10 @@ void TrackRelationship(const dsl::AstFact &fact, const ParsedKind &parsed,
 }
 
 void TrackTargetReference(const dsl::AstFact &fact, const ParsedKind &parsed,
-                          TermMap &terms, AliasMap &aliases) {
-  if (!parsed.relationship_target.has_value()) {
+                          TermMap &terms, AliasMap &aliases,
+                          const ScopeFilter &scope_filter) {
+  if (!parsed.relationship_target.has_value() ||
+      !scope_filter.TargetInScope(fact)) {
     return;
   }
   const auto target_name = CanonicalizeName(*parsed.relationship_target);
@@ -238,11 +278,33 @@ void TrackTargetReference(const dsl::AstFact &fact, const ParsedKind &parsed,
   }
 }
 
+void TrackExternalDependency(const dsl::AstFact &fact, TermMap &externals) {
+  if (fact.target_scope != dsl::AstFact::TargetScope::kExternal ||
+      fact.target.empty()) {
+    return;
+  }
+
+  const auto canonical_name = CanonicalizeName(fact.target);
+  auto &dependency = externals[canonical_name];
+  dependency.name = canonical_name;
+  dependency.kind = "External";
+  AppendDefinitionPart(fact.descriptor, dependency);
+  AppendDefinitionPart(fact.signature, dependency);
+  AddEvidence(EvidenceLocation(fact), dependency.evidence);
+  ++dependency.usage_count;
+}
+
 void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
-                        AliasMap &aliases, RelationshipMap &relationships) {
+                        AliasMap &aliases, RelationshipMap &relationships,
+                        const ScopeFilter &scope_filter,
+                        TermMap &external_dependencies) {
+  TrackExternalDependency(fact, external_dependencies);
   const auto parsed = ParseKind(fact);
+  if (!scope_filter.SubjectInScope(fact) && !IsSymbolReference(parsed)) {
+    return;
+  }
   if (IsSymbolReference(parsed) && parsed.relationship_target.has_value()) {
-    TrackTargetReference(fact, parsed, terms, aliases);
+    TrackTargetReference(fact, parsed, terms, aliases, scope_filter);
     return;
   }
   const auto canonical_name = CanonicalizeName(fact.name);
@@ -254,8 +316,8 @@ void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
   AddEvidence(EvidenceLocation(fact), term.evidence);
   ++term.usage_count;
   AppendAlias(canonical_name, fact.name, aliases, term);
-  TrackRelationship(fact, parsed, relationships);
-  TrackTargetReference(fact, parsed, terms, aliases);
+  TrackRelationship(fact, parsed, relationships, scope_filter);
+  TrackTargetReference(fact, parsed, terms, aliases, scope_filter);
   EnsureDefaultDefinition(parsed, term);
 }
 
@@ -269,13 +331,20 @@ std::vector<dsl::DslTerm> MoveTerms(TermMap &terms) {
 }
 
 std::vector<dsl::DslTerm> BuildTerms(const dsl::AstIndex &index,
-                                     RelationshipMap &relationships) {
+                                     RelationshipMap &relationships,
+                                     std::vector<dsl::DslTerm> &externals) {
   TermMap terms;
   AliasMap aliases;
+  TermMap external_dependencies;
+  const ScopeFilter scope_filter(index);
+
   for (const auto &fact : index.facts) {
-    UpdateTermFromFact(fact, terms, aliases, relationships);
+    UpdateTermFromFact(fact, terms, aliases, relationships, scope_filter,
+                       external_dependencies);
   }
   EnsureFallbackDefinitions(terms);
+  EnsureFallbackDefinitions(external_dependencies);
+  externals = MoveTerms(external_dependencies);
   return MoveTerms(terms);
 }
 
@@ -383,7 +452,7 @@ namespace dsl {
 DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
   DslExtractionResult result{};
   RelationshipMap relationships;
-  result.terms = BuildTerms(index, relationships);
+  result.terms = BuildTerms(index, relationships, result.external_dependencies);
   result.relationships = BuildRelationships(std::move(relationships));
   result.workflows = BuildWorkflows(result.relationships);
   result.facts = index.facts;
