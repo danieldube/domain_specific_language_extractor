@@ -2,6 +2,7 @@
 #include <dsl/cli_exit_codes.h>
 #include <dsl/cmake_source_acquirer.h>
 #include <dsl/compile_commands_ast_indexer.h>
+#include <dsl/dsl_analyzer.h>
 #include <dsl/default_analyzer_pipeline.h>
 #include <dsl/heuristic_dsl_extractor.h>
 #include <dsl/markdown_reporter.h>
@@ -20,19 +21,7 @@
 
 namespace {
 
-struct AnalyzeOptions {
-  std::optional<std::filesystem::path> root;
-  std::optional<std::filesystem::path> build_directory;
-  std::optional<std::filesystem::path> output_directory;
-  std::optional<std::filesystem::path> config_file;
-  std::optional<std::filesystem::path> cache_directory;
-  std::optional<std::string> scope_notes;
-  std::vector<std::string> formats;
-  std::optional<dsl::LogLevel> log_level;
-  std::optional<bool> enable_ast_cache;
-  std::optional<bool> clean_cache;
-  bool show_help = false;
-};
+using dsl::AnalyzeOptions;
 
 void PrintGlobalUsage() {
   std::cout
@@ -344,9 +333,32 @@ void ValidateAnalyzeOptions(const AnalyzeOptions &options) {
   }
 }
 
-dsl::AstCacheOptions BuildCacheOptions(const AnalyzeOptions &options,
-                                       const std::filesystem::path &root) {
-  dsl::AstCacheOptions cache_options;
+void WriteFileIfContent(const std::filesystem::path &path,
+                        const std::string &content) {
+  if (content.empty()) {
+    return;
+  }
+  std::ofstream stream(path);
+  if (!stream) {
+    throw std::runtime_error("Failed to open output file: " + path.string());
+  }
+  stream << content;
+}
+
+void WriteReports(const std::filesystem::path &root,
+                  const dsl::Report &report) {
+  std::filesystem::create_directories(root);
+  WriteFileIfContent(root / "dsl_report.md", report.markdown);
+  WriteFileIfContent(root / "dsl_report.json", report.json);
+}
+
+} // namespace
+
+namespace dsl {
+
+AstCacheOptions BuildCacheOptions(const AnalyzeOptions &options,
+                                  const std::filesystem::path &root) {
+  AstCacheOptions cache_options;
   cache_options.enabled = options.enable_ast_cache.value_or(false);
   cache_options.clean = options.clean_cache.value_or(false);
   const auto cache_dir = options.cache_directory.value_or(root / ".dsl_cache");
@@ -385,25 +397,6 @@ dsl::AnalysisConfig BuildAnalysisConfig(const AnalyzeOptions &options,
   config.logger = std::move(logger);
   config.config_file = options.config_file ? options.config_file->string() : "";
   return config;
-}
-
-void WriteFileIfContent(const std::filesystem::path &path,
-                        const std::string &content) {
-  if (content.empty()) {
-    return;
-  }
-  std::ofstream stream(path);
-  if (!stream) {
-    throw std::runtime_error("Failed to open output file: " + path.string());
-  }
-  stream << content;
-}
-
-void WriteReports(const std::filesystem::path &root,
-                  const dsl::Report &report) {
-  std::filesystem::create_directories(root);
-  WriteFileIfContent(root / "dsl_report.md", report.markdown);
-  WriteFileIfContent(root / "dsl_report.json", report.json);
 }
 
 int RunAnalyze(const std::vector<std::string> &arguments) {
@@ -503,7 +496,7 @@ int RunCacheCommand(const std::vector<std::string> &arguments) {
   return 1;
 }
 
-} // namespace
+} // namespace dsl
 
 int main(int argc, char **argv) {
   try {
@@ -526,7 +519,7 @@ int main(int argc, char **argv) {
       const std::vector<std::string> analyze_arguments(
           arguments.begin() + static_cast<std::ptrdiff_t>(first_argument_index),
           arguments.end());
-      return RunAnalyze(analyze_arguments);
+      return dsl::RunAnalyze(analyze_arguments);
     }
 
     if (command == "report") {
@@ -540,7 +533,7 @@ int main(int argc, char **argv) {
       const std::vector<std::string> cache_arguments(
           arguments.begin() + static_cast<std::ptrdiff_t>(first_argument_index),
           arguments.end());
-      return RunCacheCommand(cache_arguments);
+      return dsl::RunCacheCommand(cache_arguments);
     }
 
     throw std::invalid_argument("Unknown command: " + command);
