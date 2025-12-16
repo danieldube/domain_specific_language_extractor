@@ -107,9 +107,9 @@
 - Deployment diagram available at `docs/diagrams/arc42-section7-deployment.puml`.
 
 ## 8. Crosscutting Concepts
-- **Configuration:** YAML/TOML config plus CLI overrides; typed parsing via
-  `yaml-cpp` and `toml11` isolates the reader from the analysis core and rejects
-  unknown keys early; defaults favor deterministic analysis.
+- **Configuration:** YAML config plus CLI overrides; typed parsing via
+  `yaml-cpp` isolates the reader from the analysis core and rejects unknown keys
+  early; defaults favor deterministic analysis.
 - **Logging & Observability:** structured logging with verbosity flags; timing metrics per stage; summary of file counts and findings.
 - **Error Handling:** fail fast with contextual errors; non-zero exits on fatal parsing errors or incoherence findings.
 - **Caching:** optional AST cache keyed by toolchain/version and source hash to avoid full reparse.

@@ -21,7 +21,6 @@
 #include <variant>
 #include <vector>
 
-#include <toml.hpp>
 #include <yaml-cpp/yaml.h>
 
 namespace {
@@ -41,7 +40,7 @@ void PrintAnalyzeUsage() {
       << "  --out <path>          Directory for report outputs (default: "
          "analysis root)\n"
       << "  --scope-notes <text>  Scope notes to embed in the report header\n"
-      << "  --config <file>       Optional YAML/TOML config file\n"
+      << "  --config <file>       Optional YAML config file\n"
       << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
       << "  --verbose             Shortcut for --log-level info\n"
       << "  --debug               Shortcut for --log-level debug\n"
@@ -401,91 +400,6 @@ RawConfig ParseYamlConfig(const std::filesystem::path &path) {
   return config;
 }
 
-std::string ExtractStringScalar(const toml::value &value,
-                                const std::string &key_name) {
-  if (value.is_string()) {
-    return value.as_string();
-  }
-  throw std::invalid_argument("Config key '" + key_name +
-                              "' must be a string value");
-}
-
-std::string ExtractPathLike(const toml::value &value,
-                            const std::string &key_name) {
-  if (value.is_string()) {
-    return value.as_string();
-  }
-  if (value.is_table()) {
-    const auto &table = value.as_table();
-    for (const auto &candidate : {"path", "dir", "directory"}) {
-      if (const auto iter = table.find(candidate); iter != table.end()) {
-        return ExtractStringScalar(iter->second, key_name);
-      }
-    }
-    throw std::invalid_argument(
-        "Config key '" + key_name + "' table must contain 'path', 'dir', or "
-        "'directory'");
-  }
-  throw std::invalid_argument(
-      "Config key '" + key_name + "' must be a string or table");
-}
-
-std::vector<std::string> ExtractFormats(const toml::value &value,
-                                        const std::string &key_name) {
-  std::vector<std::string> formats;
-  if (value.is_array()) {
-    for (const auto &item : value.as_array()) {
-      AppendFormats(ExtractStringScalar(item, key_name), formats);
-    }
-    return formats;
-  }
-  if (value.is_string()) {
-    AppendFormats(value.as_string(), formats);
-    return formats;
-  }
-  throw std::invalid_argument("Config key '" + key_name +
-                              "' must be a string or array of strings");
-}
-
-bool ExtractBool(const toml::value &value, const std::string &key_name) {
-  if (value.is_boolean()) {
-    return value.as_boolean();
-  }
-  if (value.is_string()) {
-    return ParseBool(value.as_string());
-  }
-  throw std::invalid_argument("Config key '" + key_name +
-                              "' must be a boolean or boolean-like string");
-}
-
-ConfigValue ToConfigValue(const std::string &key, const toml::value &value) {
-  if (key == "formats") {
-    return ExtractFormats(value, key);
-  }
-  if (key == "cache_ast" || key == "clean_cache") {
-    return ConfigValue{ExtractBool(value, key)};
-  }
-  if (key == "build" || key == "out" || key == "root" ||
-      key == "cache_dir" || key == "scope_notes" || key == "log_level") {
-    if (key == "build" || key == "out" || key == "root" ||
-        key == "cache_dir") {
-      return ConfigValue{ExtractPathLike(value, key)};
-    }
-    return ConfigValue{ExtractStringScalar(value, key)};
-  }
-  ThrowUnknownKey(key);
-}
-
-RawConfig ParseTomlConfig(const std::filesystem::path &path) {
-  const auto document = toml::parse(path.string());
-  RawConfig config;
-  for (const auto &entry : document.as_table()) {
-    const auto key = NormalizeAndValidateKey(entry.first);
-    config[key] = ToConfigValue(key, entry.second);
-  }
-  return config;
-}
-
 void ApplyConfig(const RawConfig &config, AnalyzeOptions &options) {
   for (const auto &[key, value] : config) {
     if (key == "root") {
@@ -533,18 +447,13 @@ AnalyzeOptions ParseConfigFile(const std::filesystem::path &path) {
     throw std::runtime_error("Config file not found: " + path.string());
   }
   const auto extension = ToLower(path.extension().string());
-  if (extension != ".yml" && extension != ".yaml" && extension != ".toml") {
+  if (extension != ".yml" && extension != ".yaml") {
     throw std::invalid_argument("Unsupported config format: " + extension);
   }
 
   AnalyzeOptions options;
   options.config_file = path;
-  RawConfig config;
-  if (extension == ".toml") {
-    config = ParseTomlConfig(path);
-  } else {
-    config = ParseYamlConfig(path);
-  }
+  RawConfig config = ParseYamlConfig(path);
   ApplyConfig(config, options);
 
   return options;

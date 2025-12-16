@@ -70,46 +70,12 @@ TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   std::filesystem::remove(temp_config);
 }
 
-TEST(ParseConfigFileTest, ParsesTomlListsAndNestedPaths) {
-  const auto temp_config =
-      std::filesystem::temp_directory_path() / "dsl_analyzer_config_test.toml";
-  std::ofstream config_stream(temp_config);
-  config_stream << "root = \"/from/toml\"\n";
-  config_stream << "build = { dir = \"build-toml\" }\n";
-  config_stream << "out = { directory = \"reports\" }\n";
-  config_stream << "formats = [\"markdown\", \"json\"]\n";
-  config_stream << "cache_ast = true\n";
-  config_stream << "clean_cache = true\n";
-  config_stream << "cache_dir = \".cache/toml\"\n";
-  config_stream << "log_level = \"debug\"\n";
-  config_stream << "scope_notes = \"toml notes\"\n";
-  config_stream.close();
-
-  const auto options = ParseConfigFile(temp_config);
-
-  ASSERT_TRUE(options.root);
-  EXPECT_EQ(options.root->generic_string(), "/from/toml");
-  ASSERT_TRUE(options.build_directory);
-  EXPECT_EQ(options.build_directory->generic_string(), "build-toml");
-  ASSERT_TRUE(options.output_directory);
-  EXPECT_EQ(options.output_directory->generic_string(), "reports");
-  ASSERT_EQ(options.formats, (std::vector<std::string>{"markdown", "json"}));
-  EXPECT_EQ(options.enable_ast_cache, std::optional<bool>(true));
-  EXPECT_EQ(options.clean_cache, std::optional<bool>(true));
-  ASSERT_TRUE(options.cache_directory);
-  EXPECT_EQ(options.cache_directory->generic_string(), ".cache/toml");
-  EXPECT_EQ(options.log_level,
-            std::optional<dsl::LogLevel>(dsl::LogLevel::kDebug));
-  EXPECT_EQ(options.scope_notes, std::optional<std::string>("toml notes"));
-  std::filesystem::remove(temp_config);
-}
-
 TEST(ParseConfigFileTest, RejectsUnknownKeys) {
   const auto temp_config =
-      std::filesystem::temp_directory_path() / "dsl_analyzer_unknown.toml";
+      std::filesystem::temp_directory_path() / "dsl_analyzer_unknown.yaml";
   std::ofstream config_stream(temp_config);
-  config_stream << "root = \"/project\"\n";
-  config_stream << "unexpected = true\n";
+  config_stream << "root: /project\n";
+  config_stream << "unexpected: true\n";
   config_stream.close();
 
   EXPECT_THROW(ParseConfigFile(temp_config), std::invalid_argument);
@@ -118,11 +84,11 @@ TEST(ParseConfigFileTest, RejectsUnknownKeys) {
 
 TEST(ResolveAnalyzeOptionsTest, CliOverridesConfig) {
   const auto temp_config = std::filesystem::temp_directory_path() /
-                           "dsl_analyzer_config_override.toml";
+                           "dsl_analyzer_config_override.yaml";
   std::ofstream config_stream(temp_config);
-  config_stream << "root = \"/config/root\"\n";
-  config_stream << "formats = \"markdown\"\n";
-  config_stream << "cache-ast = true\n";
+  config_stream << "root: /config/root\n";
+  config_stream << "formats: markdown\n";
+  config_stream << "cache-ast: true\n";
   config_stream.close();
 
   AnalyzeOptions cli_options;

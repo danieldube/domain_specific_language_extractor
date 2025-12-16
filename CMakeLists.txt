@@ -24,14 +24,10 @@ FetchContent_Declare(
   URL https://github.com/jbeder/yaml-cpp/archive/refs/tags/0.8.0.tar.gz)
 
 FetchContent_Declare(
-  toml11
-  URL https://github.com/ToruNiina/toml11/archive/refs/tags/v4.1.0.tar.gz)
-
-FetchContent_Declare(
   googletest
   URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip)
 
-FetchContent_MakeAvailable(yaml-cpp toml11 googletest)
+FetchContent_MakeAvailable(yaml-cpp googletest)
 
 add_library(
   dsl_core
@@ -104,8 +100,7 @@ target_include_directories(
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${LIBCLANG_INCLUDE_DIR})
 
-target_link_libraries(dsl_core PRIVATE ${LIBCLANG_LIBRARY} yaml-cpp
-                                      toml11::toml11)
+target_link_libraries(dsl_core PRIVATE ${LIBCLANG_LIBRARY} yaml-cpp)
 
 enable_testing()
 include(GoogleTest)
