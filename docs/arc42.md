@@ -32,7 +32,25 @@
 - Repository uses pre-commit, clang-format, and clang-tidy; new code must conform.
 
 ## 3. System Scope and Context
-*To be detailed (business context and technical context diagrams, interfaces, and external dependencies).*
+- **Business context:** The CLI serves developers and reviewers running DSL
+  coherence checks locally or inside CI. Inputs are source trees (typically a
+  Git checkout) plus optional configuration; outputs are Markdown/JSON reports
+  and a process exit code that CI uses to gate merges. Results can be
+  re-emitted later via the `report` command without re-running analysis.
+- **Technical context:**
+  - **Primary actors:** Developers invoking `dsl-extract` locally; CI agents
+    executing the same commands on pull requests; reviewers reading generated
+    reports; DevOps engineers wiring the tool into pipelines.
+  - **External systems:** clang/LLVM toolchain for AST indexing, the local
+    filesystem for walking sources and caching facts, and (optionally) an LLM
+    provider behind a strategy interface. No network calls are required in the
+    default deterministic mode, keeping CI runs offline-friendly.
+  - **Interfaces:** CLI flags and YAML config; deterministic exit codes (`0`
+    success, `2` incoherence findings, `1` fatal errors) consumed by CI; report
+    artifacts consumed by humans and automated checks.
+  - **Context reference:** See Section 5 building blocks and the runtime
+    sequence diagram (`docs/diagrams/arc42-section6-runtime.puml`) for how the
+    actors interact with pipeline stages.
 
 ## 4. Solution Strategy
 - Adopt a **single-process CLI pipeline** (ADR 0001) with modular stages: source acquisition, clang-based parsing, DSL extraction, coherence analysis, and reporting.
@@ -124,10 +142,64 @@
 - **ADR 0001:** Adopt modular single-process CLI pipeline with staged analysis and plug-in extension points (`docs/adr/0001-modular-cli-pipeline.md`).
 
 ## 10. Quality Requirements
-*To be detailed (quality tree and scenarios aligned with architecture characteristics).*
+- **Quality tree anchors:** Accuracy of DSL extraction, deterministic results
+  across platforms, CI-friendly UX (clear exit codes, structured logs), and
+  maintainability via modular stages and plug-in interfaces.
+- **Scenarios:**
+  - *Correctness in CI:* Given a pull request with mixed naming semantics,
+    `dsl-extract analyze` returns exit code `2` and emits Markdown/JSON reports
+    listing incoherence findings within 10 minutes for a 50k-LOC C++ project.
+  - *Deterministic reruns:* Re-running `dsl-extract analyze` on unchanged input
+    produces byte-identical findings and reports; with `--cache-ast`, AST
+    parsing time drops on subsequent runs without altering results.
+  - *Portability:* The same configuration executed on Linux and Windows yields
+    equivalent findings and exit codes, assuming matching clang versions and
+    include paths.
+  - *Observability:* Enabling verbose logging surfaces per-stage timings and
+    file counts; fatal errors include contextual messages (e.g., missing
+    toolchain or invalid config key) to unblock users without log spelunking.
+  - *Extensibility safety:* Adding a new extraction heuristic or coherence rule
+    via the plug-in interface cannot corrupt the existing DSL term model; unit
+    and integration tests validate the new rule before release.
+  - *UX/readability:* Reports include canonical DSL terms, relationships, and
+    conflict summaries with source locations so reviewers can navigate issues
+    quickly from CI artifacts.
 
 ## 11. Risks and Technical Debt
-*To be detailed (open risks, mitigations, and technical debt items).*
+- **clang/LLVM compatibility drift:** Toolchain version mismatches across
+  developer machines and CI can change AST details and results. Mitigation:
+  document supported versions, pin CI images, and validate via regression
+  fixtures.
+- **Large-repo performance:** Very large codebases can still exceed time
+  budgets even with caching. Mitigation: profile parsing hot spots, allow build
+  directory exclusion, and plan for incremental analysis strategies.
+- **Windows parity gaps:** Limited automated coverage on Windows can mask
+  portability issues. Mitigation: expand CI matrix with Windows runners and add
+  platform-specific integration tests.
+- **Cache invalidation correctness:** AST cache relies on toolchain and source
+  hashes; subtle misses could reuse stale data. Mitigation: strengthen cache
+  keys, record metadata in cache manifests, and expose a `clean` command (already
+  present) in CI workflows.
+- **Plug-in API stability:** Extension interfaces are young; breaking changes
+  could block third-party rules. Mitigation: version plug-in contracts and
+  document migration guides.
+- **LLM strategy uncertainty:** Optional LLM enrichment can introduce
+  nondeterminism or privacy concerns. Mitigation: keep deterministic mode
+  default, require explicit opt-in, and log prompts/outputs when enabled.
 
 ## 12. Glossary
-*To be detailed (domain terms, acronyms, and definitions).*
+- **AST cache:** On-disk storage of clang-derived facts keyed by source hash
+  and toolchain version to accelerate repeat analyses.
+- **Coherence finding:** A reported inconsistency between DSL intent and
+  implementation semantics, produced by the Coherence Analyzer and surfaced in
+  reports with severity and locations.
+- **DSL term:** Canonicalized domain entity, action, or relationship extracted
+  from names, signatures, and behavior; the primary unit of DSL representation
+  in reports.
+- **Analysis pipeline:** Ordered stages of source acquisition, AST indexing,
+  DSL extraction, coherence analysis, and reporting executed by the CLI.
+- **Report formats:** Markdown and JSON outputs that mirror each other to serve
+  both reviewers and automated checks; regenerated by the `report` subcommand
+  without re-running analysis.
+- **Scope notes:** Optional user-provided text attached to a run to describe
+  the analysis context (e.g., CI job, branch, or ticket).
