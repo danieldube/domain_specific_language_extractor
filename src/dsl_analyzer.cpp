@@ -41,6 +41,10 @@ void PrintAnalyzeUsage() {
          "analysis root)\n"
       << "  --scope-notes <text>  Scope notes to embed in the report header\n"
       << "  --config <file>       Optional YAML config file\n"
+      << "  --ignored-namespaces <list>  Comma-separated namespaces to ignore\n"
+      << "                        when analyzing symbols (default: "
+         "std,testing,\n"
+      << "                        gtest)\n"
       << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
       << "  --verbose             Shortcut for --log-level info\n"
       << "  --debug               Shortcut for --log-level debug\n"
@@ -125,6 +129,19 @@ std::vector<std::string> SplitFormats(const std::string &raw_formats) {
   return values;
 }
 
+void AppendValues(const std::string &raw_values,
+                  std::vector<std::string> &target) {
+  for (auto value : SplitFormats(raw_values)) {
+    value = Trim(value);
+    if (value.empty()) {
+      continue;
+    }
+    if (std::find(target.begin(), target.end(), value) == target.end()) {
+      target.push_back(std::move(value));
+    }
+  }
+}
+
 void AppendFormats(const std::string &raw_formats,
                    std::vector<std::string> &target) {
   for (auto format : SplitFormats(raw_formats)) {
@@ -136,6 +153,11 @@ void AppendFormats(const std::string &raw_formats,
       target.push_back(std::move(format));
     }
   }
+}
+
+void AppendIgnoredNamespaces(const std::string &raw_namespaces,
+                             std::vector<std::string> &target) {
+  AppendValues(raw_namespaces, target);
 }
 
 std::string RequireValue(const std::vector<std::string> &arguments,
@@ -189,6 +211,17 @@ void HandleFormatOption(const std::vector<std::string> &arguments,
   }
 }
 
+void HandleIgnoredNamespacesOption(const std::vector<std::string> &arguments,
+                                   std::size_t &index,
+                                   AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--ignored-namespaces") {
+    AppendIgnoredNamespaces(
+        RequireValue(arguments, index, "--ignored-namespaces"),
+        options.ignored_namespaces);
+  }
+}
+
 void HandlePluginSelection(const std::vector<std::string> &arguments,
                            std::size_t &index, AnalyzeOptions &options) {
   const auto &argument = arguments[index];
@@ -236,6 +269,11 @@ bool DispatchAnalyzeOption(const std::vector<std::string> &arguments,
 
   HandleFormatOption(arguments, index, options);
   if (argument == "--format") {
+    return true;
+  }
+
+  HandleIgnoredNamespacesOption(arguments, index, options);
+  if (argument == "--ignored-namespaces") {
     return true;
   }
 
@@ -355,10 +393,19 @@ using ConfigValue = std::variant<std::string, bool, std::vector<std::string>>;
 using RawConfig = std::unordered_map<std::string, ConfigValue>;
 
 const std::vector<std::string> &SupportedConfigKeys() {
-  static const std::vector<std::string> keys = {
-      "root",        "build",     "out",         "formats",
-      "cache_ast",   "cache_dir", "clean_cache", "log_level",
-      "scope_notes", "extractor", "analyzer",    "reporter"};
+  static const std::vector<std::string> keys = {"root",
+                                                "build",
+                                                "out",
+                                                "formats",
+                                                "cache_ast",
+                                                "cache_dir",
+                                                "clean_cache",
+                                                "log_level",
+                                                "scope_notes",
+                                                "extractor",
+                                                "analyzer",
+                                                "reporter",
+                                                "ignored_namespaces"};
   return keys;
 }
 
@@ -428,21 +475,38 @@ std::string ExtractPathLike(const YAML::Node &node,
                               "' must be a string or mapping");
 }
 
-std::vector<std::string> ExtractFormats(const YAML::Node &node,
-                                        const std::string &key_name) {
-  std::vector<std::string> formats;
+using ListAppender = void (*)(const std::string &, std::vector<std::string> &);
+
+std::vector<std::string> ExtractList(const YAML::Node &node,
+                                     const std::string &key_name,
+                                     ListAppender appender) {
+  std::vector<std::string> values;
   if (node.IsSequence()) {
     for (const auto &child : node) {
-      AppendFormats(child.as<std::string>(), formats);
+      if (!child.IsScalar()) {
+        throw std::invalid_argument("Config key '" + key_name +
+                                    "' must be a list of strings");
+      }
+      appender(child.as<std::string>(), values);
     }
-    return formats;
+    return values;
   }
   if (node.IsScalar()) {
-    AppendFormats(node.as<std::string>(), formats);
-    return formats;
+    appender(node.as<std::string>(), values);
+    return values;
   }
   throw std::invalid_argument("Config key '" + key_name +
                               "' must be a string or list of strings");
+}
+
+std::vector<std::string> ExtractFormats(const YAML::Node &node,
+                                        const std::string &key_name) {
+  return ExtractList(node, key_name, AppendFormats);
+}
+
+std::vector<std::string> ExtractIgnoredNamespaces(const YAML::Node &node,
+                                                  const std::string &key_name) {
+  return ExtractList(node, key_name, AppendIgnoredNamespaces);
 }
 
 bool ExtractBool(const YAML::Node &node, const std::string &key_name) {
@@ -456,6 +520,9 @@ bool ExtractBool(const YAML::Node &node, const std::string &key_name) {
 ConfigValue ToConfigValue(const std::string &key, const YAML::Node &node) {
   if (key == "formats") {
     return ExtractFormats(node, key);
+  }
+  if (key == "ignored_namespaces") {
+    return ExtractIgnoredNamespaces(node, key);
   }
   if (key == "cache_ast" || key == "clean_cache") {
     return ConfigValue{ExtractBool(node, key)};
@@ -506,6 +573,10 @@ void ApplyConfig(const RawConfig &config, AnalyzeOptions &options) {
     }
     if (key == "formats") {
       options.formats = std::get<std::vector<std::string>>(value);
+      continue;
+    }
+    if (key == "ignored_namespaces") {
+      options.ignored_namespaces = std::get<std::vector<std::string>>(value);
       continue;
     }
     if (key == "log_level") {
@@ -578,6 +649,9 @@ AnalyzeOptions MergeOptions(const AnalyzeOptions &config_options,
 
   if (!cli_options.formats.empty()) {
     merged.formats = cli_options.formats;
+  }
+  if (!cli_options.ignored_namespaces.empty()) {
+    merged.ignored_namespaces = cli_options.ignored_namespaces;
   }
   if (cli_options.log_level) {
     merged.log_level = cli_options.log_level;
@@ -683,6 +757,9 @@ dsl::AnalysisConfig BuildAnalysisConfig(const AnalyzeOptions &options,
                        : options.formats;
   config.scope_notes = options.scope_notes.value_or("");
   config.logging = BuildLoggingConfig(options);
+  if (!options.ignored_namespaces.empty()) {
+    config.ignored_namespaces = options.ignored_namespaces;
+  }
   config.cache.enable_ast_cache = options.enable_ast_cache.value_or(false);
   config.cache.clean = options.clean_cache.value_or(false);
   config.cache.directory = cache_dir.string();

@@ -14,6 +14,13 @@ using ::testing::Field;
 using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 
+AnalysisConfig MakeConfig() {
+  AnalysisConfig config;
+  config.root_path = "repo";
+  config.formats = {"markdown"};
+  return config;
+}
+
 AstFact MakeDefinition(const std::string &name, const std::string &kind,
                        const std::string &signature) {
   AstFact fact{};
@@ -61,7 +68,7 @@ TEST(HeuristicDslExtractorTest, SkipsExternalTargetsAndCollectsDependencies) {
       "uses ExternalType", "uses ExternalType"));
 
   HeuristicDslExtractor extractor;
-  const auto result = extractor.Extract(index);
+  const auto result = extractor.Extract(index, MakeConfig());
 
   std::vector<std::string> term_names;
   term_names.reserve(result.terms.size());
@@ -81,6 +88,43 @@ TEST(HeuristicDslExtractorTest, SkipsExternalTargetsAndCollectsDependencies) {
               Contains(Field(&DslTerm::name, "std..sort")));
   ASSERT_THAT(result.external_dependencies,
               Contains(Field(&DslTerm::name, "externaltype")));
+}
+
+TEST(HeuristicDslExtractorTest, SkipsDefaultIgnoredNamespaces) {
+  AstIndex index;
+  index.facts.push_back(
+      MakeDefinition("std::Vector", "type", "class std::Vector"));
+  index.facts.push_back(MakeRelationshipFact(
+      "Foo", "call", "testing::Do", AstFact::TargetScope::kInProject,
+      "void testing::Do()", "calls testing::Do"));
+
+  HeuristicDslExtractor extractor;
+  const auto result = extractor.Extract(index, MakeConfig());
+
+  EXPECT_THAT(result.terms,
+              Not(Contains(Field(&DslTerm::name, "std..vector"))));
+  EXPECT_THAT(result.relationships,
+              Not(Contains(Field(&DslRelationship::object, "testing..do"))));
+}
+
+TEST(HeuristicDslExtractorTest, AllowsCustomIgnoredNamespaces) {
+  AstIndex index;
+  index.facts.push_back(MakeDefinition("Bar", "function", "void Bar()"));
+  index.facts.push_back(
+      MakeDefinition("gtest::Suite", "type", "class gtest::Suite"));
+  index.facts.push_back(MakeRelationshipFact(
+      "Bar", "call", "gtest::Suite", AstFact::TargetScope::kInProject,
+      "void gtest::Suite()", "calls gtest::Suite"));
+
+  auto config = MakeConfig();
+  config.ignored_namespaces = {"custom"};
+
+  HeuristicDslExtractor extractor;
+  const auto result = extractor.Extract(index, config);
+
+  EXPECT_THAT(result.terms, Contains(Field(&DslTerm::name, "gtest..suite")));
+  EXPECT_THAT(result.relationships,
+              Contains(Field(&DslRelationship::object, "gtest..suite")));
 }
 
 } // namespace

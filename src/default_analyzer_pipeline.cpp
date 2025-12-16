@@ -30,7 +30,7 @@ PipelineResult DefaultAnalyzerPipeline::Run(const AnalysisConfig &config) {
       LogLevel::kDebug, "pipeline.stage.complete",
       {{"stage", "index"}, {"facts", std::to_string(index.facts.size())}});
 
-  const auto extraction = extractor_->Extract(index);
+  const auto extraction = extractor_->Extract(index, config);
   logger_->Log(
       LogLevel::kDebug, "pipeline.stage.complete",
       {{"stage", "extract"},

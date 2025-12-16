@@ -29,7 +29,8 @@ public:
 
 class CustomExtractor : public DslExtractor {
 public:
-  DslExtractionResult Extract(const AstIndex &) override {
+  DslExtractionResult Extract(const AstIndex &,
+                              const AnalysisConfig &) override {
     DslExtractionResult result;
     result.extraction_notes.push_back("custom extractor used");
     DslTerm term;

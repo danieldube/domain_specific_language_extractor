@@ -54,11 +54,26 @@ std::string CanonicalizeName(std::string name) {
   return name;
 }
 
+std::vector<std::string>
+CanonicalizeNamespaces(const std::vector<std::string> &namespaces) {
+  std::vector<std::string> canonicalized;
+  canonicalized.reserve(namespaces.size());
+  for (const auto &value : namespaces) {
+    canonicalized.push_back(CanonicalizeName(value));
+  }
+  return canonicalized;
+}
+
 class ScopeFilter {
 public:
-  explicit ScopeFilter(const dsl::AstIndex &index) {
+  ScopeFilter(const dsl::AstIndex &index,
+              const std::vector<std::string> &ignored_namespaces)
+      : ignored_namespaces_(CanonicalizeNamespaces(ignored_namespaces)) {
     for (const auto &fact : index.facts) {
       if (!fact.subject_in_project) {
+        continue;
+      }
+      if (IsIgnored(fact.name)) {
         continue;
       }
       if (fact.kind == "function" || fact.kind == "type" ||
@@ -69,11 +84,17 @@ public:
   }
 
   bool SubjectInScope(const dsl::AstFact &fact) const {
+    if (IsIgnored(fact.name)) {
+      return false;
+    }
     return fact.subject_in_project &&
            in_project_symbols_.count(CanonicalizeName(fact.name)) > 0;
   }
 
   bool TargetInScope(const dsl::AstFact &fact) const {
+    if (IsIgnored(fact.target)) {
+      return false;
+    }
     if (fact.target_scope == dsl::AstFact::TargetScope::kExternal) {
       return false;
     }
@@ -87,7 +108,27 @@ public:
   }
 
 private:
+  bool HasIgnoredPrefix(const std::string &canonicalized_name) const {
+    for (const auto &ns : ignored_namespaces_) {
+      if (canonicalized_name.compare(0, ns.size(), ns) == 0) {
+        if (canonicalized_name.size() == ns.size() ||
+            canonicalized_name[ns.size()] == '.') {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool IsIgnored(const std::string &name) const {
+    if (name.empty()) {
+      return false;
+    }
+    return HasIgnoredPrefix(CanonicalizeName(name));
+  }
+
   std::unordered_set<std::string> in_project_symbols_;
+  std::vector<std::string> ignored_namespaces_;
 };
 
 std::string EvidenceLocation(const dsl::AstFact &fact) {
@@ -332,11 +373,12 @@ std::vector<dsl::DslTerm> MoveTerms(TermMap &terms) {
 
 std::vector<dsl::DslTerm> BuildTerms(const dsl::AstIndex &index,
                                      RelationshipMap &relationships,
-                                     std::vector<dsl::DslTerm> &externals) {
+                                     std::vector<dsl::DslTerm> &externals,
+                                     const dsl::AnalysisConfig &config) {
   TermMap terms;
   AliasMap aliases;
   TermMap external_dependencies;
-  const ScopeFilter scope_filter(index);
+  const ScopeFilter scope_filter(index, config.ignored_namespaces);
 
   for (const auto &fact : index.facts) {
     UpdateTermFromFact(fact, terms, aliases, relationships, scope_filter,
@@ -449,10 +491,13 @@ void AppendExtractionNotes(dsl::DslExtractionResult &result) {
 
 namespace dsl {
 
-DslExtractionResult HeuristicDslExtractor::Extract(const AstIndex &index) {
+DslExtractionResult
+HeuristicDslExtractor::Extract(const AstIndex &index,
+                               const AnalysisConfig &config) {
   DslExtractionResult result{};
   RelationshipMap relationships;
-  result.terms = BuildTerms(index, relationships, result.external_dependencies);
+  result.terms =
+      BuildTerms(index, relationships, result.external_dependencies, config);
   result.relationships = BuildRelationships(std::move(relationships));
   result.workflows = BuildWorkflows(result.relationships);
   result.facts = index.facts;

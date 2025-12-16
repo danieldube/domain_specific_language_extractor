@@ -17,6 +17,13 @@
 namespace dsl {
 namespace {
 
+AnalysisConfig MakeConfig() {
+  AnalysisConfig config;
+  config.root_path = ".";
+  config.formats = {"markdown"};
+  return config;
+}
+
 TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
   AstIndex index;
   index.facts = {
@@ -49,7 +56,7 @@ TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
   }
   HeuristicDslExtractor extractor;
 
-  const auto extraction = extractor.Extract(index);
+  const auto extraction = extractor.Extract(index, MakeConfig());
 
   ASSERT_EQ(extraction.terms.size(), 4u);
 
