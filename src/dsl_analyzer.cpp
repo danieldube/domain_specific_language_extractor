@@ -17,7 +17,11 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <variant>
 #include <vector>
+
+#include <yaml-cpp/yaml.h>
 
 namespace {
 
@@ -36,7 +40,7 @@ void PrintAnalyzeUsage() {
       << "  --out <path>          Directory for report outputs (default: "
          "analysis root)\n"
       << "  --scope-notes <text>  Scope notes to embed in the report header\n"
-      << "  --config <file>       Optional YAML/TOML config file\n"
+      << "  --config <file>       Optional YAML config file\n"
       << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
       << "  --verbose             Shortcut for --log-level info\n"
       << "  --debug               Shortcut for --log-level debug\n"
@@ -264,77 +268,178 @@ ParseAnalyzeArguments(const std::vector<std::string> &arguments) {
   return options;
 }
 
-std::optional<ConfigEntry> ParseConfigLine(std::string line) {
-  const auto comment = line.find('#');
-  if (comment != std::string::npos) {
-    line = line.substr(0, comment);
-  }
-  line = Trim(line);
-  if (line.empty()) {
-    return std::nullopt;
-  }
+using ConfigValue = std::variant<std::string, bool, std::vector<std::string>>;
+using RawConfig = std::unordered_map<std::string, ConfigValue>;
 
-  const auto delimiter = line.find_first_of(":=");
-  if (delimiter == std::string::npos) {
-    throw std::invalid_argument("Invalid config line (missing delimiter): " +
-                                line);
-  }
-
-  auto key = Trim(line.substr(0, delimiter));
-  auto value = Trim(line.substr(delimiter + 1));
-  if (key.empty()) {
-    throw std::invalid_argument("Invalid config line (missing key): " + line);
-  }
-
-  if (!value.empty() && value.front() == '[' && value.back() == ']') {
-    value = value.substr(1, value.size() - 2);
-  }
-  if (!value.empty() && ((value.front() == '"' && value.back() == '"') ||
-                         (value.front() == '\'' && value.back() == '\''))) {
-    value = value.substr(1, value.size() - 2);
-  }
-
-  return ConfigEntry{ToLower(key), value};
+const std::vector<std::string> &SupportedConfigKeys() {
+  static const std::vector<std::string> keys = {
+      "root",      "build",       "out",       "formats",    "cache_ast",
+      "cache_dir", "clean_cache", "log_level", "scope_notes"};
+  return keys;
 }
 
-void ApplyConfigEntry(const ConfigEntry &entry, AnalyzeOptions &options) {
-  const auto &key = entry.key;
-  const auto &value = entry.value;
+std::string NormalizeConfigKey(std::string key) {
+  key = ToLower(Trim(key));
+  std::replace(key.begin(), key.end(), '-', '_');
+  static const std::unordered_map<std::string, std::string> aliases = {
+      {"build_directory", "build"},
+      {"output", "out"},
+      {"output_directory", "out"},
+      {"format", "formats"},
+      {"cache_directory", "cache_dir"}};
 
-  if (key == "root") {
-    options.root = value;
-    return;
+  if (const auto alias = aliases.find(key); alias != aliases.end()) {
+    return alias->second;
   }
-  if (key == "build" || key == "build_directory") {
-    options.build_directory = value;
-    return;
+  return key;
+}
+
+[[noreturn]] void ThrowUnknownKey(const std::string &key) {
+  std::string message = "Unknown config key: " + key + ". Supported keys: ";
+  const auto &supported = SupportedConfigKeys();
+  for (std::size_t i = 0; i < supported.size(); ++i) {
+    message += supported[i];
+    if (i + 1 < supported.size()) {
+      message += ", ";
+    }
   }
-  if (key == "out" || key == "output" || key == "output_directory") {
-    options.output_directory = value;
-    return;
+  throw std::invalid_argument(message);
+}
+
+std::string NormalizeAndValidateKey(const std::string &key) {
+  const auto normalized = NormalizeConfigKey(key);
+  const auto &supported = SupportedConfigKeys();
+  const auto found = std::find(supported.begin(), supported.end(), normalized);
+  if (found == supported.end()) {
+    ThrowUnknownKey(key);
   }
-  if (key == "scope_notes" || key == "scope-notes") {
-    options.scope_notes = value;
-    return;
+  return normalized;
+}
+
+std::string ExtractStringScalar(const YAML::Node &node,
+                                const std::string &key_name) {
+  if (!node.IsScalar()) {
+    throw std::invalid_argument("Config key '" + key_name +
+                                "' must be a string or path value");
   }
-  if (key == "formats" || key == "format") {
-    AppendFormats(value, options.formats);
-    return;
+  return node.as<std::string>();
+}
+
+std::string ExtractPathLike(const YAML::Node &node,
+                            const std::string &key_name) {
+  if (node.IsScalar()) {
+    return node.as<std::string>();
   }
-  if (key == "log_level" || key == "log-level") {
-    options.log_level = ParseLogLevel(value);
-    return;
+  if (node.IsMap()) {
+    for (const auto &candidate : {"path", "dir", "directory"}) {
+      if (node[candidate]) {
+        return ExtractStringScalar(node[candidate], key_name);
+      }
+    }
+    throw std::invalid_argument("Config key '" + key_name +
+                                "' map must contain 'path', 'dir', or "
+                                "'directory'");
   }
-  if (key == "cache_ast" || key == "cache-ast") {
-    options.enable_ast_cache = ParseBool(value);
-    return;
+  throw std::invalid_argument("Config key '" + key_name +
+                              "' must be a string or mapping");
+}
+
+std::vector<std::string> ExtractFormats(const YAML::Node &node,
+                                        const std::string &key_name) {
+  std::vector<std::string> formats;
+  if (node.IsSequence()) {
+    for (const auto &child : node) {
+      AppendFormats(child.as<std::string>(), formats);
+    }
+    return formats;
   }
-  if (key == "clean_cache" || key == "clean-cache") {
-    options.clean_cache = ParseBool(value);
-    return;
+  if (node.IsScalar()) {
+    AppendFormats(node.as<std::string>(), formats);
+    return formats;
   }
-  if (key == "cache_dir" || key == "cache-dir") {
-    options.cache_directory = value;
+  throw std::invalid_argument("Config key '" + key_name +
+                              "' must be a string or list of strings");
+}
+
+bool ExtractBool(const YAML::Node &node, const std::string &key_name) {
+  if (!node.IsScalar()) {
+    throw std::invalid_argument("Config key '" + key_name +
+                                "' must be a boolean or boolean-like string");
+  }
+  return ParseBool(node.as<std::string>());
+}
+
+ConfigValue ToConfigValue(const std::string &key, const YAML::Node &node) {
+  if (key == "formats") {
+    return ExtractFormats(node, key);
+  }
+  if (key == "cache_ast" || key == "clean_cache") {
+    return ConfigValue{ExtractBool(node, key)};
+  }
+  if (key == "build" || key == "out" || key == "root" || key == "cache_dir" ||
+      key == "scope_notes" || key == "log_level") {
+    if (key == "build" || key == "out" || key == "root" || key == "cache_dir") {
+      return ConfigValue{ExtractPathLike(node, key)};
+    }
+    return ConfigValue{ExtractStringScalar(node, key)};
+  }
+  ThrowUnknownKey(key);
+}
+
+RawConfig ParseYamlConfig(const std::filesystem::path &path) {
+  const auto root = YAML::LoadFile(path.string());
+  if (!root.IsMap()) {
+    throw std::invalid_argument(
+        "Config file must contain a mapping at the root");
+  }
+
+  RawConfig config;
+  for (const auto &entry : root) {
+    const auto key = NormalizeAndValidateKey(entry.first.as<std::string>());
+    config[key] = ToConfigValue(key, entry.second);
+  }
+  return config;
+}
+
+void ApplyConfig(const RawConfig &config, AnalyzeOptions &options) {
+  for (const auto &[key, value] : config) {
+    if (key == "root") {
+      options.root = std::get<std::string>(value);
+      continue;
+    }
+    if (key == "build") {
+      options.build_directory = std::get<std::string>(value);
+      continue;
+    }
+    if (key == "out") {
+      options.output_directory = std::get<std::string>(value);
+      continue;
+    }
+    if (key == "scope_notes") {
+      options.scope_notes = std::get<std::string>(value);
+      continue;
+    }
+    if (key == "formats") {
+      options.formats = std::get<std::vector<std::string>>(value);
+      continue;
+    }
+    if (key == "log_level") {
+      options.log_level = ParseLogLevel(std::get<std::string>(value));
+      continue;
+    }
+    if (key == "cache_ast") {
+      options.enable_ast_cache = std::get<bool>(value);
+      continue;
+    }
+    if (key == "clean_cache") {
+      options.clean_cache = std::get<bool>(value);
+      continue;
+    }
+    if (key == "cache_dir") {
+      options.cache_directory = std::get<std::string>(value);
+      continue;
+    }
+    ThrowUnknownKey(key);
   }
 }
 
@@ -343,21 +448,14 @@ AnalyzeOptions ParseConfigFile(const std::filesystem::path &path) {
     throw std::runtime_error("Config file not found: " + path.string());
   }
   const auto extension = ToLower(path.extension().string());
-  if (extension != ".yml" && extension != ".yaml" && extension != ".toml") {
+  if (extension != ".yml" && extension != ".yaml") {
     throw std::invalid_argument("Unsupported config format: " + extension);
   }
 
   AnalyzeOptions options;
   options.config_file = path;
-  std::ifstream stream(path);
-  std::string line;
-  while (std::getline(stream, line)) {
-    const auto parsed = ParseConfigLine(line);
-    if (!parsed) {
-      continue;
-    }
-    ApplyConfigEntry(*parsed, options);
-  }
+  RawConfig config = ParseYamlConfig(path);
+  ApplyConfig(config, options);
 
   return options;
 }
