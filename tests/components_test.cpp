@@ -39,6 +39,13 @@ TEST(HeuristicDslExtractorTest, BuildsTermsAndRelationships) {
       {"FrameBuffer", "type", "types.h:30", "class FrameBuffer", "holds pixels",
        "", "30:1-30:20"},
   };
+  for (auto &fact : index.facts) {
+    fact.subject_in_project = true;
+    if (fact.kind == "call" || fact.kind == "type_usage" || fact.kind == "owns" ||
+        fact.kind == "reference" || fact.kind == "alias") {
+      fact.target_scope = AstFact::TargetScope::kInProject;
+    }
+  }
   HeuristicDslExtractor extractor;
 
   const auto extraction = extractor.Extract(index);

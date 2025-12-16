@@ -128,6 +128,28 @@ std::string BuildTermsMarkdown(const DslExtractionResult &extraction) {
   return section.str();
 }
 
+std::string
+BuildExternalDependenciesMarkdown(const DslExtractionResult &extraction) {
+  std::ostringstream section;
+  section << "## External Dependencies\n\n";
+  section << "| Name | Kind | Definition | Evidence | Usage Count |\n";
+  section << "| --- | --- | --- | --- | --- |\n";
+
+  if (extraction.external_dependencies.empty()) {
+    section << "| None | - | - | - | - |\n\n";
+    return section.str();
+  }
+
+  for (const auto &dependency : extraction.external_dependencies) {
+    section << "| " << dependency.name << " | " << dependency.kind << " | "
+            << dependency.definition << " | "
+            << JoinWithBreaks(dependency.evidence) << " | "
+            << dependency.usage_count << " |\n";
+  }
+  section << "\n";
+  return section.str();
+}
+
 std::string BuildRelationshipsMarkdown(const DslExtractionResult &extraction) {
   std::ostringstream section;
   section << "## Relationships\n\n";
@@ -257,6 +279,26 @@ std::string BuildRelationshipsJson(const DslExtractionResult &extraction) {
   return json.str();
 }
 
+std::string
+BuildExternalDependenciesJson(const DslExtractionResult &extraction) {
+  std::ostringstream json;
+  json << "\"external_dependencies\": [";
+  for (std::size_t i = 0; i < extraction.external_dependencies.size(); ++i) {
+    const auto &dependency = extraction.external_dependencies[i];
+    if (i > 0) {
+      json << ",";
+    }
+    json << "{\"name\": \"" << EscapeJsonString(dependency.name) << "\",";
+    json << "\"kind\": \"" << EscapeJsonString(dependency.kind) << "\",";
+    json << "\"definition\": \"" << EscapeJsonString(dependency.definition)
+         << "\",";
+    json << "\"evidence\": [" << JoinJsonArray(dependency.evidence) << "],";
+    json << "\"usage_count\": " << dependency.usage_count << "}";
+  }
+  json << "]";
+  return json.str();
+}
+
 std::string BuildWorkflowsJson(const DslExtractionResult &extraction) {
   std::ostringstream json;
   json << "\"workflows\": [";
@@ -321,6 +363,7 @@ Report MarkdownReporter::Render(const DslExtractionResult &extraction,
     output << "# DSL Extraction Report\n\n";
     output << BuildAnalysisHeaderMarkdown(config, timestamp);
     output << BuildTermsMarkdown(extraction);
+    output << BuildExternalDependenciesMarkdown(extraction);
     output << BuildRelationshipsMarkdown(extraction);
     output << BuildWorkflowsMarkdown(extraction);
     output << BuildIncoherenceMarkdown(coherence);
@@ -333,6 +376,7 @@ Report MarkdownReporter::Render(const DslExtractionResult &extraction,
     output << "{";
     output << BuildAnalysisHeaderJson(config, timestamp) << ",";
     output << BuildTermsJson(extraction) << ",";
+    output << BuildExternalDependenciesJson(extraction) << ",";
     output << BuildRelationshipsJson(extraction) << ",";
     output << BuildWorkflowsJson(extraction) << ",";
     output << BuildIncoherenceJson(coherence) << ",";

@@ -118,6 +118,7 @@ set(TEST_SOURCES
     tests/cli_integration_test.cpp
     tests/dsl_analyzer_test.cpp
     tests/end_to_end_dsl_extraction_test.cpp
+    tests/heuristic_dsl_extractor_test.cpp
     tests/escaping_test.cpp
     tests/logging_test.cpp)
 add_executable(dsl_tests ${TEST_SOURCES})

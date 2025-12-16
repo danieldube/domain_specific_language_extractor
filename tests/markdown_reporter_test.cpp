@@ -18,6 +18,14 @@ TEST(MarkdownReporterTest, RendersSections) {
   verb_term.usage_count = 2;
   extraction.terms = {verb_term};
 
+  DslTerm external_term;
+  external_term.name = "std::vector";
+  external_term.kind = "External";
+  external_term.definition = "calls std::vector";
+  external_term.evidence = {"vector.h:1"};
+  external_term.usage_count = 1;
+  extraction.external_dependencies = {external_term};
+
   DslRelationship relationship;
   relationship.subject = "verb";
   relationship.verb = "acts";
@@ -49,6 +57,7 @@ TEST(MarkdownReporterTest, RendersSections) {
   EXPECT_THAT(report.markdown, ::testing::HasSubstr("Analysis Header"));
   EXPECT_THAT(report.markdown,
               ::testing::HasSubstr("Canonical Terms (Glossary)"));
+  EXPECT_THAT(report.markdown, ::testing::HasSubstr("External Dependencies"));
   EXPECT_THAT(report.markdown, ::testing::HasSubstr("Relationships"));
   EXPECT_THAT(report.markdown, ::testing::HasSubstr("Workflows"));
   EXPECT_THAT(report.markdown, ::testing::HasSubstr("Incoherence Report"));
@@ -56,6 +65,7 @@ TEST(MarkdownReporterTest, RendersSections) {
   EXPECT_THAT(report.markdown, ::testing::HasSubstr("verb"));
   EXPECT_THAT(report.json, ::testing::HasSubstr("\"analysis_header\""));
   EXPECT_THAT(report.json, ::testing::HasSubstr("\"terms\""));
+  EXPECT_THAT(report.json, ::testing::HasSubstr("\"external_dependencies\""));
   EXPECT_THAT(report.json, ::testing::HasSubstr("\"relationships\""));
   EXPECT_THAT(report.json, ::testing::HasSubstr("\"workflows\""));
   EXPECT_THAT(report.json, ::testing::HasSubstr("\"incoherence_report\""));
