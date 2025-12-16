@@ -273,9 +273,8 @@ using RawConfig = std::unordered_map<std::string, ConfigValue>;
 
 const std::vector<std::string> &SupportedConfigKeys() {
   static const std::vector<std::string> keys = {
-      "root",       "build",     "out",       "formats",
-      "cache_ast",  "cache_dir", "clean_cache", "log_level",
-      "scope_notes"};
+      "root",      "build",       "out",       "formats",    "cache_ast",
+      "cache_dir", "clean_cache", "log_level", "scope_notes"};
   return keys;
 }
 
@@ -283,8 +282,10 @@ std::string NormalizeConfigKey(std::string key) {
   key = ToLower(Trim(key));
   std::replace(key.begin(), key.end(), '-', '_');
   static const std::unordered_map<std::string, std::string> aliases = {
-      {"build_directory", "build"},        {"output", "out"},
-      {"output_directory", "out"},         {"format", "formats"},
+      {"build_directory", "build"},
+      {"output", "out"},
+      {"output_directory", "out"},
+      {"format", "formats"},
       {"cache_directory", "cache_dir"}};
 
   if (const auto alias = aliases.find(key); alias != aliases.end()) {
@@ -335,12 +336,12 @@ std::string ExtractPathLike(const YAML::Node &node,
         return ExtractStringScalar(node[candidate], key_name);
       }
     }
-    throw std::invalid_argument(
-        "Config key '" + key_name + "' map must contain 'path', 'dir', or "
-        "'directory'");
+    throw std::invalid_argument("Config key '" + key_name +
+                                "' map must contain 'path', 'dir', or "
+                                "'directory'");
   }
-  throw std::invalid_argument(
-      "Config key '" + key_name + "' must be a string or mapping");
+  throw std::invalid_argument("Config key '" + key_name +
+                              "' must be a string or mapping");
 }
 
 std::vector<std::string> ExtractFormats(const YAML::Node &node,
@@ -375,10 +376,9 @@ ConfigValue ToConfigValue(const std::string &key, const YAML::Node &node) {
   if (key == "cache_ast" || key == "clean_cache") {
     return ConfigValue{ExtractBool(node, key)};
   }
-  if (key == "build" || key == "out" || key == "root" ||
-      key == "cache_dir" || key == "scope_notes" || key == "log_level") {
-    if (key == "build" || key == "out" || key == "root" ||
-        key == "cache_dir") {
+  if (key == "build" || key == "out" || key == "root" || key == "cache_dir" ||
+      key == "scope_notes" || key == "log_level") {
+    if (key == "build" || key == "out" || key == "root" || key == "cache_dir") {
       return ConfigValue{ExtractPathLike(node, key)};
     }
     return ConfigValue{ExtractStringScalar(node, key)};
@@ -389,7 +389,8 @@ ConfigValue ToConfigValue(const std::string &key, const YAML::Node &node) {
 RawConfig ParseYamlConfig(const std::filesystem::path &path) {
   const auto root = YAML::LoadFile(path.string());
   if (!root.IsMap()) {
-    throw std::invalid_argument("Config file must contain a mapping at the root");
+    throw std::invalid_argument(
+        "Config file must contain a mapping at the root");
   }
 
   RawConfig config;
