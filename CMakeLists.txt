@@ -72,6 +72,7 @@ target_sources(
          include/dsl/compile_commands_ast_indexer.h
          include/dsl/default_analyzer_pipeline.h
          include/dsl/default_components.h
+         include/dsl/dsl_analyzer.h
          include/dsl/escaping.h
          include/dsl/heuristic_dsl_extractor.h
          include/dsl/interfaces.h
