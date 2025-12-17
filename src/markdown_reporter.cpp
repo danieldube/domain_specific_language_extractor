@@ -71,7 +71,7 @@ std::string JoinEvidenceWithBreaks(const std::vector<std::string> &items) {
     return "-";
   }
 
-  return Join(items, "<br>\n", [](const std::string &value) {
+  return Join(items, "<br>", [](const std::string &value) {
     return FormatEvidenceEntry(value);
   });
 }
