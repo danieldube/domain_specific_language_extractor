@@ -49,6 +49,33 @@ std::string JoinWithBreaks(const std::vector<std::string> &items) {
   return Join(items, "<br>", [](const std::string &value) { return value; });
 }
 
+std::string FormatEvidenceEntry(const std::string &evidence) {
+  const auto separator = evidence.find('@');
+  if (separator == std::string::npos) {
+    return evidence;
+  }
+
+  const auto source = evidence.substr(0, separator);
+  const auto range = evidence.substr(separator + 1);
+  if (range.empty() || source == range) {
+    return source;
+  }
+
+  std::ostringstream formatted;
+  formatted << source << "<br>&nbsp;&nbsp;Range: " << range;
+  return formatted.str();
+}
+
+std::string JoinEvidenceWithBreaks(const std::vector<std::string> &items) {
+  if (items.empty()) {
+    return "-";
+  }
+
+  return Join(items, "<br>\n", [](const std::string &value) {
+    return FormatEvidenceEntry(value);
+  });
+}
+
 std::string JoinJsonArray(const std::vector<std::string> &values) {
   return Join(values, ",", [](const std::string &value) {
     return "\"" + EscapeJsonString(value) + "\"";
@@ -120,7 +147,7 @@ std::string BuildTermsMarkdown(const DslExtractionResult &extraction) {
 
   for (const auto &term : extraction.terms) {
     section << "| " << term.name << " | " << term.kind << " | "
-            << term.definition << " | " << JoinWithBreaks(term.evidence)
+            << term.definition << " | " << JoinEvidenceWithBreaks(term.evidence)
             << " | " << JoinWithBreaks(term.aliases) << " | "
             << term.usage_count << " |\n";
   }
@@ -143,7 +170,7 @@ BuildExternalDependenciesMarkdown(const DslExtractionResult &extraction) {
   for (const auto &dependency : extraction.external_dependencies) {
     section << "| " << dependency.name << " | " << dependency.kind << " | "
             << dependency.definition << " | "
-            << JoinWithBreaks(dependency.evidence) << " | "
+            << JoinEvidenceWithBreaks(dependency.evidence) << " | "
             << dependency.usage_count << " |\n";
   }
   section << "\n";
@@ -163,7 +190,7 @@ std::string BuildRelationshipsMarkdown(const DslExtractionResult &extraction) {
   for (const auto &relationship : extraction.relationships) {
     section << "| " << relationship.subject << " | " << relationship.verb
             << " | " << relationship.object << " | "
-            << JoinWithBreaks(relationship.evidence) << " | "
+            << JoinEvidenceWithBreaks(relationship.evidence) << " | "
             << RelationshipNotes(relationship) << " | "
             << relationship.usage_count << " |\n";
   }
