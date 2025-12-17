@@ -89,7 +89,7 @@ TEST(MarkdownReporterTest, JoinsListsWithDelimiters) {
 
   const auto report = reporter.Render(extraction, coherence, config);
 
-  EXPECT_THAT(report.markdown, ::testing::HasSubstr("file:1<br>file:2"));
+  EXPECT_THAT(report.markdown, ::testing::HasSubstr("file:1<br>\nfile:2"));
   EXPECT_THAT(report.markdown, ::testing::HasSubstr("alias1<br>alias2"));
   EXPECT_THAT(report.json,
               ::testing::HasSubstr("\"evidence\": [\"file:1\",\"file:2\"]"));
