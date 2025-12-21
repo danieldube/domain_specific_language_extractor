@@ -45,6 +45,8 @@ void PrintAnalyzeUsage() {
       << "                        when analyzing symbols (default: "
          "std,testing,\n"
       << "                        gtest)\n"
+      << "  --ignored-paths <list> Comma-separated paths relative to --root\n"
+      << "                        to ignore during analysis\n"
       << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
       << "  --verbose             Shortcut for --log-level info\n"
       << "  --debug               Shortcut for --log-level debug\n"
@@ -160,6 +162,62 @@ void AppendIgnoredNamespaces(const std::string &raw_namespaces,
   AppendValues(raw_namespaces, target);
 }
 
+std::vector<std::string> SplitPathList(const std::string &raw_paths) {
+  std::vector<std::string> values;
+  std::string current;
+  for (const auto character : raw_paths) {
+    if (character == ',') {
+      if (!current.empty()) {
+        values.push_back(current);
+        current.clear();
+      }
+    } else {
+      current.push_back(character);
+    }
+  }
+  if (!current.empty()) {
+    values.push_back(current);
+  }
+  return values;
+}
+
+void AppendIgnoredPaths(const std::string &raw_paths,
+                        std::vector<std::filesystem::path> &target) {
+  for (auto path_value : SplitPathList(raw_paths)) {
+    path_value = Trim(path_value);
+    if (path_value.empty()) {
+      continue;
+    }
+
+    const std::filesystem::path path(
+        std::filesystem::path(path_value).generic_string());
+    const auto matches = std::find_if(
+        target.begin(), target.end(), [&](const auto &existing) {
+          return existing.generic_string() == path.generic_string();
+        });
+    if (matches == target.end()) {
+      target.push_back(path);
+    }
+  }
+}
+
+void AppendRawPathStrings(const std::string &raw_paths,
+                          std::vector<std::string> &target) {
+  for (auto path_value : SplitPathList(raw_paths)) {
+    path_value = Trim(path_value);
+    if (path_value.empty()) {
+      continue;
+    }
+
+    const auto normalized =
+        std::filesystem::path(path_value).generic_string();
+    if (std::find(target.begin(), target.end(), normalized) ==
+        target.end()) {
+      target.push_back(normalized);
+    }
+  }
+}
+
 std::string RequireValue(const std::vector<std::string> &arguments,
                          std::size_t &index, const std::string &flag) {
   if (++index >= arguments.size()) {
@@ -222,6 +280,15 @@ void HandleIgnoredNamespacesOption(const std::vector<std::string> &arguments,
   }
 }
 
+void HandleIgnoredPathsOption(const std::vector<std::string> &arguments,
+                              std::size_t &index, AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--ignored-paths") {
+    AppendIgnoredPaths(RequireValue(arguments, index, "--ignored-paths"),
+                      options.ignored_paths);
+  }
+}
+
 void HandlePluginSelection(const std::vector<std::string> &arguments,
                            std::size_t &index, AnalyzeOptions &options) {
   const auto &argument = arguments[index];
@@ -274,6 +341,11 @@ bool DispatchAnalyzeOption(const std::vector<std::string> &arguments,
 
   HandleIgnoredNamespacesOption(arguments, index, options);
   if (argument == "--ignored-namespaces") {
+    return true;
+  }
+
+  HandleIgnoredPathsOption(arguments, index, options);
+  if (argument == "--ignored-paths") {
     return true;
   }
 
@@ -405,7 +477,8 @@ const std::vector<std::string> &SupportedConfigKeys() {
                                                 "extractor",
                                                 "analyzer",
                                                 "reporter",
-                                                "ignored_namespaces"};
+                                                "ignored_namespaces",
+                                                "ignored_paths"};
   return keys;
 }
 
@@ -509,6 +582,11 @@ std::vector<std::string> ExtractIgnoredNamespaces(const YAML::Node &node,
   return ExtractList(node, key_name, AppendIgnoredNamespaces);
 }
 
+std::vector<std::string> ExtractIgnoredPaths(const YAML::Node &node,
+                                             const std::string &key_name) {
+  return ExtractList(node, key_name, AppendRawPathStrings);
+}
+
 bool ExtractBool(const YAML::Node &node, const std::string &key_name) {
   if (!node.IsScalar()) {
     throw std::invalid_argument("Config key '" + key_name +
@@ -523,6 +601,9 @@ ConfigValue ToConfigValue(const std::string &key, const YAML::Node &node) {
   }
   if (key == "ignored_namespaces") {
     return ExtractIgnoredNamespaces(node, key);
+  }
+  if (key == "ignored_paths") {
+    return ExtractIgnoredPaths(node, key);
   }
   if (key == "cache_ast" || key == "clean_cache") {
     return ConfigValue{ExtractBool(node, key)};
@@ -577,6 +658,11 @@ void ApplyConfig(const RawConfig &config, AnalyzeOptions &options) {
     }
     if (key == "ignored_namespaces") {
       options.ignored_namespaces = std::get<std::vector<std::string>>(value);
+      continue;
+    }
+    if (key == "ignored_paths") {
+      const auto paths = std::get<std::vector<std::string>>(value);
+      options.ignored_paths.assign(paths.begin(), paths.end());
       continue;
     }
     if (key == "log_level") {
@@ -652,6 +738,9 @@ AnalyzeOptions MergeOptions(const AnalyzeOptions &config_options,
   }
   if (!cli_options.ignored_namespaces.empty()) {
     merged.ignored_namespaces = cli_options.ignored_namespaces;
+  }
+  if (!cli_options.ignored_paths.empty()) {
+    merged.ignored_paths = cli_options.ignored_paths;
   }
   if (cli_options.log_level) {
     merged.log_level = cli_options.log_level;
@@ -759,6 +848,18 @@ dsl::AnalysisConfig BuildAnalysisConfig(const AnalyzeOptions &options,
   config.logging = BuildLoggingConfig(options);
   if (!options.ignored_namespaces.empty()) {
     config.ignored_namespaces = options.ignored_namespaces;
+  }
+  if (!options.ignored_paths.empty()) {
+    std::vector<std::string> normalized_paths;
+    normalized_paths.reserve(options.ignored_paths.size());
+    for (auto path : options.ignored_paths) {
+      if (!path.is_absolute()) {
+        path = root / path;
+      }
+      normalized_paths.push_back(
+          std::filesystem::weakly_canonical(path).generic_string());
+    }
+    config.ignored_paths = std::move(normalized_paths);
   }
   config.cache.enable_ast_cache = options.enable_ast_cache.value_or(false);
   config.cache.clean = options.clean_cache.value_or(false);
