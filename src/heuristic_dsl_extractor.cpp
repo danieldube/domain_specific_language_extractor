@@ -132,12 +132,13 @@ private:
 };
 
 std::string EvidenceLocation(const dsl::AstFact &fact) {
-  std::string location;
-  if (fact.source_location.empty()) {
-    location = fact.range;
-  }
-  if (location.empty()) {
-    location = fact.source_location;
+  std::string location = fact.source_location;
+  if (!fact.range.empty() && fact.range != fact.source_location) {
+    if (location.empty()) {
+      location = fact.range;
+    } else {
+      location.append("@").append(fact.range);
+    }
   }
   if (!fact.scope_path.empty()) {
     if (location.empty()) {

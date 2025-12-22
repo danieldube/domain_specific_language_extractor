@@ -39,9 +39,8 @@ void ReplaceAll(std::string &text, const std::string &placeholder,
 
 TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
   test::TemporaryProject project;
-  const auto source_path = project.AddFile(
-      "src/example.cpp",
-      R"(namespace sample {
+  const auto source_path = project.AddFile("src/example.cpp",
+                                           R"(namespace sample {
 /// Widget entity
 struct Widget {
   /// Holds a widget value
@@ -108,21 +107,20 @@ int Use(const Widget &widget) {
                 Field(&AstFact::source_location, HasSubstr("example.cpp:3")))));
   EXPECT_THAT(
       index.facts,
-      Contains(
-          AllOf(Field(&AstFact::name, "sample::Calculator::Add"),
-                Field(&AstFact::kind, "function"),
-                Field(&AstFact::signature, HasSubstr("int Add(int")),
-                Field(&AstFact::doc_comment, HasSubstr("Adds numbers")),
-                Field(&AstFact::scope_path, "sample::Calculator"),
-                Field(&AstFact::source_location, HasSubstr("example.cpp:11")))));
-  EXPECT_THAT(
-      index.facts,
       Contains(AllOf(
-          Field(&AstFact::name, "sample::threshold"),
-          Field(&AstFact::kind, "variable"),
-          Field(&AstFact::descriptor, HasSubstr("double")),
-          Field(&AstFact::scope_path, "sample"),
-          Field(&AstFact::source_location, HasSubstr("example.cpp:15")))));
+          Field(&AstFact::name, "sample::Calculator::Add"),
+          Field(&AstFact::kind, "function"),
+          Field(&AstFact::signature, HasSubstr("int Add(int")),
+          Field(&AstFact::doc_comment, HasSubstr("Adds numbers")),
+          Field(&AstFact::scope_path, "sample::Calculator"),
+          Field(&AstFact::source_location, HasSubstr("example.cpp:11")))));
+  EXPECT_THAT(index.facts,
+              Contains(AllOf(Field(&AstFact::name, "sample::threshold"),
+                             Field(&AstFact::kind, "variable"),
+                             Field(&AstFact::descriptor, HasSubstr("double")),
+                             Field(&AstFact::scope_path, "sample"),
+                             Field(&AstFact::source_location,
+                                   HasSubstr("example.cpp:15")))));
 }
 
 TEST(CompileCommandsAstIndexerTest,

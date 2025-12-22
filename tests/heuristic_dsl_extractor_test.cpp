@@ -139,26 +139,28 @@ TEST(HeuristicDslExtractorTest, MergesCommentsAndScopeIntoDefinitions) {
   index.facts.push_back(MakeDefinition("sample::Widget", "type",
                                        "struct Widget",
                                        "Widget entity for samples", "sample"));
-  index.facts.push_back(MakeDefinition("sample::Calculator::Add", "function",
-                                       "int Add(int a, int b)",
-                                       "Adds two numbers", "sample::Calculator"));
+  index.facts.push_back(MakeDefinition(
+      "sample::Calculator::Add", "function", "int Add(int a, int b)",
+      "Adds two numbers", "sample::Calculator"));
 
   HeuristicDslExtractor extractor;
   const auto result = extractor.Extract(index, MakeConfig());
 
   ASSERT_THAT(result.terms,
               Contains(AllOf(Field(&DslTerm::name, "sample..widget"),
-                              Field(&DslTerm::definition,
-                                    AllOf(HasSubstr("Widget entity for samples"),
-                                          HasSubstr("sample"))))));
-  ASSERT_THAT(result.terms,
-              Contains(AllOf(Field(&DslTerm::name, "sample..calculator..add"),
-                              Field(&DslTerm::definition,
-                                    AllOf(HasSubstr("Adds two numbers"),
-                                          HasSubstr("sample::Calculator"))),
-                              Field(&DslTerm::evidence,
-                                    Contains(HasSubstr(
-                                        "sample::Calculator@sample::Calculator::Add::location"))))));
+                             Field(&DslTerm::definition,
+                                   AllOf(HasSubstr("Widget entity for samples"),
+                                         HasSubstr("sample"))))));
+  ASSERT_THAT(
+      result.terms,
+      Contains(AllOf(
+          Field(&DslTerm::name, "sample..calculator..add"),
+          Field(&DslTerm::definition, AllOf(HasSubstr("Adds two numbers"),
+                                            HasSubstr("sample::Calculator"))),
+          Field(
+              &DslTerm::evidence,
+              Contains(HasSubstr(
+                  "sample::Calculator@sample::Calculator::Add::location"))))));
 }
 
 } // namespace
