@@ -49,5 +49,23 @@ TEST_F(CMakeSourceAcquirerTest, ThrowsWhenProjectIsNotCMakeBased) {
   EXPECT_THROW(acquirer_.Acquire(MakeConfig()), std::runtime_error);
 }
 
+TEST_F(CMakeSourceAcquirerTest, SkipsFilesUnderIgnoredPaths) {
+  project_.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+  const auto kept_source =
+      project_.AddFile("src/main.cpp", "int main() {return 0;}");
+  project_.AddFile("source/generated.cpp", "void generated();");
+
+  auto config = MakeConfig();
+  config.ignored_paths = {
+      std::filesystem::weakly_canonical(project_.root() / "source")
+          .generic_string()};
+
+  const auto result = acquirer_.Acquire(config);
+
+  EXPECT_THAT(result.files,
+              ::testing::ElementsAre(
+                  std::filesystem::weakly_canonical(kept_source).string()));
+}
+
 } // namespace
 } // namespace dsl

@@ -10,12 +10,13 @@ namespace {
 
 TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   const std::vector<std::string> args = {
-      "--root",        "/project/root",   "--build",     "build-dir",
-      "--format",      "markdown,json",   "--out",       "out-dir",
-      "--scope-notes", "notes",           "--config",    "config.yml",
-      "--log-level",   "debug",           "--cache-ast", "--clean-cache",
-      "--cache-dir",   "cache",           "--extractor", "custom-extractor",
-      "--analyzer",    "custom-analyzer", "--reporter",  "custom-reporter"};
+      "--root",          "/project/root",   "--build",     "build-dir",
+      "--format",        "markdown,json",   "--out",       "out-dir",
+      "--scope-notes",   "notes",           "--config",    "config.yml",
+      "--log-level",     "debug",           "--cache-ast", "--clean-cache",
+      "--cache-dir",     "cache",           "--extractor", "custom-extractor",
+      "--analyzer",      "custom-analyzer", "--reporter",  "custom-reporter",
+      "--ignored-paths", "source,tmp"};
 
   const auto options = ParseAnalyzeArguments(args);
 
@@ -38,6 +39,9 @@ TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   EXPECT_EQ(options.extractor, std::optional<std::string>("custom-extractor"));
   EXPECT_EQ(options.analyzer, std::optional<std::string>("custom-analyzer"));
   EXPECT_EQ(options.reporter, std::optional<std::string>("custom-reporter"));
+  ASSERT_EQ(options.ignored_paths.size(), 2u);
+  EXPECT_EQ(options.ignored_paths[0].generic_string(), "source");
+  EXPECT_EQ(options.ignored_paths[1].generic_string(), "tmp");
 }
 
 TEST(ParseReportArgumentsTest, ParsesFlagsAndFormats) {
@@ -70,6 +74,9 @@ TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   config_stream << "extractor: yaml-extractor\n";
   config_stream << "analyzer: yaml-analyzer\n";
   config_stream << "reporter: yaml-reporter\n";
+  config_stream << "ignored_paths:\n";
+  config_stream << "  - source\n";
+  config_stream << "  - generated\n";
   config_stream.close();
 
   const auto options = ParseConfigFile(temp_config);
@@ -91,6 +98,9 @@ TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   EXPECT_EQ(options.extractor, std::optional<std::string>("yaml-extractor"));
   EXPECT_EQ(options.analyzer, std::optional<std::string>("yaml-analyzer"));
   EXPECT_EQ(options.reporter, std::optional<std::string>("yaml-reporter"));
+  ASSERT_EQ(options.ignored_paths.size(), 2u);
+  EXPECT_EQ(options.ignored_paths[0].generic_string(), "source");
+  EXPECT_EQ(options.ignored_paths[1].generic_string(), "generated");
   std::filesystem::remove(temp_config);
 }
 

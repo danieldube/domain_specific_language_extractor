@@ -21,6 +21,7 @@ struct AnalyzeOptions {
   std::optional<std::string> reporter;
   std::vector<std::string> formats;
   std::vector<std::string> ignored_namespaces;
+  std::vector<std::filesystem::path> ignored_paths;
   std::optional<dsl::LogLevel> log_level;
   std::optional<bool> enable_ast_cache;
   std::optional<bool> clean_cache;
