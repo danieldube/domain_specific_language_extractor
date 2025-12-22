@@ -182,6 +182,32 @@ std::string SignatureForCursor(CXCursor cursor) {
   return ToString(clang_getCursorDisplayName(cursor));
 }
 
+std::string BuildScopePath(CXCursor cursor) {
+  std::vector<std::string> components;
+  auto parent = clang_getCursorSemanticParent(cursor);
+  while (!clang_Cursor_isNull(parent) &&
+         clang_getCursorKind(parent) != CXCursor_TranslationUnit) {
+    const auto name = ToString(clang_getCursorSpelling(parent));
+    if (!name.empty()) {
+      components.push_back(name);
+    }
+    parent = clang_getCursorSemanticParent(parent);
+  }
+  if (components.empty()) {
+    return {};
+  }
+  std::reverse(components.begin(), components.end());
+  return Join(components, "::");
+}
+
+std::string DocComment(CXCursor cursor) {
+  auto comment = ToString(clang_Cursor_getRawCommentText(cursor));
+  if (!comment.empty()) {
+    return comment;
+  }
+  return ToString(clang_Cursor_getBriefCommentText(cursor));
+}
+
 class FactCollector {
 public:
   explicit FactCollector(const std::filesystem::path &project_root)
@@ -306,6 +332,8 @@ private:
     fact.descriptor = fact.signature;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.doc_comment = DocComment(cursor);
+    fact.scope_path = BuildScopePath(cursor);
     fact.subject_in_project = true;
     AddFact(std::move(fact));
   }
@@ -324,6 +352,8 @@ private:
     fact.signature = fact.descriptor + ": " + fact.target;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.doc_comment = DocComment(cursor);
+    fact.scope_path = BuildScopePath(cursor);
     fact.subject_in_project = true;
     fact.target_scope =
         DetermineTargetScope(clang_getCursorType(cursor), fact.target_location);
@@ -353,6 +383,8 @@ private:
     fact.descriptor = "calls " + target_name;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.doc_comment = DocComment(cursor);
+    fact.scope_path = BuildScopePath(cursor);
     fact.subject_in_project = true;
     fact.target_scope = DetermineTargetScope(referenced, fact.target_location);
     AddFact(std::move(fact));
@@ -377,6 +409,8 @@ private:
     fact.signature = fact.descriptor;
     fact.source_location = FormatRange(clang_getCursorExtent(cursor));
     fact.range = fact.source_location;
+    fact.doc_comment = DocComment(cursor);
+    fact.scope_path = BuildScopePath(cursor);
     fact.subject_in_project = true;
     fact.target_scope =
         DetermineTargetScope(clang_getCursorType(cursor), fact.target_location);

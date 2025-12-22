@@ -132,13 +132,21 @@ private:
 };
 
 std::string EvidenceLocation(const dsl::AstFact &fact) {
-  if (fact.source_location.empty()) {
-    return fact.range;
+  std::string location = fact.source_location;
+  if (!fact.range.empty() && fact.range != fact.source_location) {
+    if (location.empty()) {
+      location = fact.range;
+    } else {
+      location.append("@").append(fact.range);
+    }
   }
-  if (fact.range.empty()) {
-    return fact.source_location;
+  if (!fact.scope_path.empty()) {
+    if (location.empty()) {
+      return fact.scope_path;
+    }
+    return fact.scope_path + "@" + location;
   }
-  return fact.source_location + "@" + fact.range;
+  return location;
 }
 
 std::string DeriveTermKind(const std::string &base_kind) {
@@ -331,6 +339,8 @@ void TrackExternalDependency(const dsl::AstFact &fact, TermMap &externals) {
   dependency.kind = "External";
   AppendDefinitionPart(fact.descriptor, dependency);
   AppendDefinitionPart(fact.signature, dependency);
+  AppendDefinitionPart(fact.doc_comment, dependency);
+  AppendDefinitionPart(fact.scope_path, dependency);
   AddEvidence(EvidenceLocation(fact), dependency.evidence);
   ++dependency.usage_count;
 }
@@ -352,8 +362,10 @@ void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
   auto &term = terms[canonical_name];
   term.name = canonical_name;
   EnsureKindInitialized(parsed, term);
+  AppendDefinitionPart(fact.doc_comment, term);
   AppendDefinitionPart(parsed.descriptor.value_or(""), term);
   AppendDefinitionPart(fact.signature, term);
+  AppendDefinitionPart(fact.scope_path, term);
   AddEvidence(EvidenceLocation(fact), term.evidence);
   ++term.usage_count;
   AppendAlias(canonical_name, fact.name, aliases, term);

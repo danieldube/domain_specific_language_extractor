@@ -39,13 +39,30 @@ void ReplaceAll(std::string &text, const std::string &placeholder,
 
 TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
   test::TemporaryProject project;
-  const auto source_path = project.AddFile(
-      "src/example.cpp",
-      "struct Widget { int value; };\nint Add(int a, int b) "
-      "{ return a + b; }\ndouble threshold = 3.14;\nint Use(const "
-      "Widget &widget) { return Add(widget.value, "
-      "static_cast<int>(threshold)); "
-      "}\n");
+  const auto source_path = project.AddFile("src/example.cpp",
+                                           R"(namespace sample {
+/// Widget entity
+struct Widget {
+  /// Holds a widget value
+  int value;
+};
+
+class Calculator {
+public:
+  /// Adds numbers together
+  int Add(int a, int b) { return a + b; }
+};
+
+/// Threshold for widget calculations
+double threshold = 3.14;
+
+/// Uses a widget value inside a nested scope
+int Use(const Widget &widget) {
+  Calculator calculator;
+  return calculator.Add(widget.value, static_cast<int>(threshold));
+}
+}  // namespace sample
+)");
   const auto build_dir = project.root() / "build";
   std::filesystem::create_directories(build_dir);
   const auto generated_path =
@@ -82,21 +99,28 @@ TEST(CompileCommandsAstIndexerTest, ExtractsFactsFromTranslationUnits) {
   EXPECT_THAT(
       index.facts,
       Contains(
-          AllOf(Field(&AstFact::name, "Widget"), Field(&AstFact::kind, "type"),
+          AllOf(Field(&AstFact::name, "sample::Widget"),
+                Field(&AstFact::kind, "type"),
                 Field(&AstFact::signature, HasSubstr("Widget")),
-                Field(&AstFact::source_location, HasSubstr("example.cpp:1")))));
-  EXPECT_THAT(
-      index.facts,
-      Contains(
-          AllOf(Field(&AstFact::name, "Add"), Field(&AstFact::kind, "function"),
-                Field(&AstFact::signature, HasSubstr("int Add(int")),
-                Field(&AstFact::source_location, HasSubstr("example.cpp:2")))));
+                Field(&AstFact::doc_comment, HasSubstr("Widget entity")),
+                Field(&AstFact::scope_path, "sample"),
+                Field(&AstFact::source_location, HasSubstr("example.cpp:3")))));
   EXPECT_THAT(
       index.facts,
       Contains(AllOf(
-          Field(&AstFact::name, "threshold"), Field(&AstFact::kind, "variable"),
-          Field(&AstFact::descriptor, HasSubstr("double")),
-          Field(&AstFact::source_location, HasSubstr("example.cpp:3")))));
+          Field(&AstFact::name, "sample::Calculator::Add"),
+          Field(&AstFact::kind, "function"),
+          Field(&AstFact::signature, HasSubstr("int Add(int")),
+          Field(&AstFact::doc_comment, HasSubstr("Adds numbers")),
+          Field(&AstFact::scope_path, "sample::Calculator"),
+          Field(&AstFact::source_location, HasSubstr("example.cpp:11")))));
+  EXPECT_THAT(index.facts,
+              Contains(AllOf(Field(&AstFact::name, "sample::threshold"),
+                             Field(&AstFact::kind, "variable"),
+                             Field(&AstFact::descriptor, HasSubstr("double")),
+                             Field(&AstFact::scope_path, "sample"),
+                             Field(&AstFact::source_location,
+                                   HasSubstr("example.cpp:15")))));
 }
 
 TEST(CompileCommandsAstIndexerTest,

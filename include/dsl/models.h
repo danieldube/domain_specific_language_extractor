@@ -39,6 +39,8 @@ struct AstFact {
   std::string descriptor;
   std::string target;
   std::string range;
+  std::string doc_comment;
+  std::string scope_path;
   bool subject_in_project = false;
   enum class TargetScope {
     kUnknown,
