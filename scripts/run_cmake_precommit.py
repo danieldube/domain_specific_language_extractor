@@ -2,13 +2,17 @@
 import platform
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def run(command):
-    subprocess.run(command, check=True)
+def run(command, *, allow_failure: bool = False):
+    result = subprocess.run(command, check=False)
+    if result.returncode != 0 and not allow_failure:
+        raise subprocess.CalledProcessError(result.returncode, command)
+    return result
 
 
 def install_dependencies():
@@ -17,10 +21,17 @@ def install_dependencies():
     if system == "Windows":
         installer = scripts_dir / "install_dev_dependencies.ps1"
         shell = "pwsh" if shutil.which("pwsh") else "powershell"
-        run([shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(installer)])
+        command = [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(installer)]
     else:
         installer = scripts_dir / "install_dev_dependencies.sh"
-        run([str(installer)])
+        command = [str(installer)]
+
+    result = run(command, allow_failure=True)
+    if result.returncode != 0:
+        sys.stderr.write(
+            "Skipping dependency installation for pre-commit: installer failed. "
+            "Run scripts/install_dev_dependencies.* manually if toolchain is missing.\n"
+        )
 
 
 def main():

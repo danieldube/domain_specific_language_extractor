@@ -191,8 +191,8 @@ void AppendIgnoredPaths(const std::string &raw_paths,
 
     const std::filesystem::path path(
         std::filesystem::path(path_value).generic_string());
-    const auto matches = std::find_if(
-        target.begin(), target.end(), [&](const auto &existing) {
+    const auto matches =
+        std::find_if(target.begin(), target.end(), [&](const auto &existing) {
           return existing.generic_string() == path.generic_string();
         });
     if (matches == target.end()) {
@@ -209,10 +209,8 @@ void AppendRawPathStrings(const std::string &raw_paths,
       continue;
     }
 
-    const auto normalized =
-        std::filesystem::path(path_value).generic_string();
-    if (std::find(target.begin(), target.end(), normalized) ==
-        target.end()) {
+    const auto normalized = std::filesystem::path(path_value).generic_string();
+    if (std::find(target.begin(), target.end(), normalized) == target.end()) {
       target.push_back(normalized);
     }
   }
@@ -285,7 +283,7 @@ void HandleIgnoredPathsOption(const std::vector<std::string> &arguments,
   const auto &argument = arguments[index];
   if (argument == "--ignored-paths") {
     AppendIgnoredPaths(RequireValue(arguments, index, "--ignored-paths"),
-                      options.ignored_paths);
+                       options.ignored_paths);
   }
 }
 

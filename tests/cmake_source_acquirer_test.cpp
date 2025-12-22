@@ -56,16 +56,15 @@ TEST_F(CMakeSourceAcquirerTest, SkipsFilesUnderIgnoredPaths) {
   project_.AddFile("source/generated.cpp", "void generated();");
 
   auto config = MakeConfig();
-  config.ignored_paths =
-      {std::filesystem::weakly_canonical(project_.root() / "source")
-           .generic_string()};
+  config.ignored_paths = {
+      std::filesystem::weakly_canonical(project_.root() / "source")
+          .generic_string()};
 
   const auto result = acquirer_.Acquire(config);
 
   EXPECT_THAT(result.files,
-              ::testing::ElementsAre(std::filesystem::weakly_canonical(
-                                          kept_source)
-                                          .string()));
+              ::testing::ElementsAre(
+                  std::filesystem::weakly_canonical(kept_source).string()));
 }
 
 } // namespace

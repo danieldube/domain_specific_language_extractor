@@ -51,8 +51,9 @@ bool IsCollectableFile(const std::filesystem::directory_entry &entry,
 
 bool IsIgnoredPath(const std::filesystem::path &path,
                    const std::vector<std::filesystem::path> &ignored_paths) {
-  return std::any_of(ignored_paths.begin(), ignored_paths.end(),
-                     [&](const auto &ignored) { return IsWithin(path, ignored); });
+  return std::any_of(
+      ignored_paths.begin(), ignored_paths.end(),
+      [&](const auto &ignored) { return IsWithin(path, ignored); });
 }
 
 std::filesystem::path ResolveRootPath(const AnalysisConfig &config) {
@@ -89,8 +90,7 @@ CollectSourceFiles(const std::filesystem::path &root,
   for (std::filesystem::recursive_directory_iterator it(root), end; it != end;
        ++it) {
     const auto &entry = *it;
-    const auto canonical_path =
-        std::filesystem::weakly_canonical(entry.path());
+    const auto canonical_path = std::filesystem::weakly_canonical(entry.path());
     if (IsIgnoredPath(canonical_path, ignored_paths)) {
       if (entry.is_directory()) {
         it.disable_recursion_pending();

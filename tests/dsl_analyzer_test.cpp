@@ -10,12 +10,12 @@ namespace {
 
 TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   const std::vector<std::string> args = {
-      "--root",        "/project/root",   "--build",     "build-dir",
-      "--format",      "markdown,json",   "--out",       "out-dir",
-      "--scope-notes", "notes",           "--config",    "config.yml",
-      "--log-level",   "debug",           "--cache-ast", "--clean-cache",
-      "--cache-dir",   "cache",           "--extractor", "custom-extractor",
-      "--analyzer",    "custom-analyzer", "--reporter",  "custom-reporter",
+      "--root",          "/project/root",   "--build",     "build-dir",
+      "--format",        "markdown,json",   "--out",       "out-dir",
+      "--scope-notes",   "notes",           "--config",    "config.yml",
+      "--log-level",     "debug",           "--cache-ast", "--clean-cache",
+      "--cache-dir",     "cache",           "--extractor", "custom-extractor",
+      "--analyzer",      "custom-analyzer", "--reporter",  "custom-reporter",
       "--ignored-paths", "source,tmp"};
 
   const auto options = ParseAnalyzeArguments(args);
