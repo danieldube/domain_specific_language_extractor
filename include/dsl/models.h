@@ -2,6 +2,7 @@
 
 #include <dsl/logging.h>
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -14,6 +15,7 @@ struct AnalysisConfig {
   std::string scope_notes;
   LoggingConfig logging;
   std::vector<std::string> ignored_namespaces{"std", "testing", "gtest"};
+  std::vector<std::filesystem::path> ignored_source_directories;
   struct CacheConfig {
     bool enable_ast_cache = false;
     bool clean = false;

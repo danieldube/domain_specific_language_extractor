@@ -43,6 +43,23 @@ TEST_F(CMakeSourceAcquirerTest, ProducesNormalizedFileList) {
                   std::filesystem::weakly_canonical(header_path).string()));
 }
 
+TEST_F(CMakeSourceAcquirerTest, SkipsIgnoredDirectoriesFromCollection) {
+  project_.AddFile("CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+  const auto kept_path =
+      project_.AddFile("app/main.cpp", "int main() {return 0;}");
+  project_.AddFile("source/generated/ignored.cpp", "int ignored();");
+  project_.AddFile("source/generated/ignored.h", "int ignored();");
+
+  auto config = MakeConfig();
+  config.ignored_source_directories = {project_.root() / "source"};
+
+  const auto result = acquirer_.Acquire(config);
+
+  EXPECT_THAT(result.files,
+              ::testing::ElementsAre(
+                  std::filesystem::weakly_canonical(kept_path).string()));
+}
+
 TEST_F(CMakeSourceAcquirerTest, ThrowsWhenProjectIsNotCMakeBased) {
   project_.AddFile("src/example.cpp", "void example() {}");
 

@@ -45,6 +45,9 @@ void PrintAnalyzeUsage() {
       << "                        when analyzing symbols (default: "
          "std,testing,\n"
       << "                        gtest)\n"
+      << "  --ignored-source-folders <list>  Comma-separated source "
+         "directories\n"
+      << "                        to skip during analysis (relative to root)\n"
       << "  --log-level <level>   Logging verbosity (error,warn,info,debug)\n"
       << "  --verbose             Shortcut for --log-level info\n"
       << "  --debug               Shortcut for --log-level debug\n"
@@ -160,6 +163,11 @@ void AppendIgnoredNamespaces(const std::string &raw_namespaces,
   AppendValues(raw_namespaces, target);
 }
 
+void AppendIgnoredSourceDirectories(const std::string &raw_directories,
+                                    std::vector<std::string> &target) {
+  AppendValues(raw_directories, target);
+}
+
 std::string RequireValue(const std::vector<std::string> &arguments,
                          std::size_t &index, const std::string &flag) {
   if (++index >= arguments.size()) {
@@ -222,6 +230,17 @@ void HandleIgnoredNamespacesOption(const std::vector<std::string> &arguments,
   }
 }
 
+void HandleIgnoredSourceDirectoriesOption(
+    const std::vector<std::string> &arguments, std::size_t &index,
+    AnalyzeOptions &options) {
+  const auto &argument = arguments[index];
+  if (argument == "--ignored-source-folders" ||
+      argument == "--ignored-source-directories") {
+    AppendIgnoredSourceDirectories(RequireValue(arguments, index, argument),
+                                   options.ignored_source_directories);
+  }
+}
+
 void HandlePluginSelection(const std::vector<std::string> &arguments,
                            std::size_t &index, AnalyzeOptions &options) {
   const auto &argument = arguments[index];
@@ -274,6 +293,12 @@ bool DispatchAnalyzeOption(const std::vector<std::string> &arguments,
 
   HandleIgnoredNamespacesOption(arguments, index, options);
   if (argument == "--ignored-namespaces") {
+    return true;
+  }
+
+  HandleIgnoredSourceDirectoriesOption(arguments, index, options);
+  if (argument == "--ignored-source-folders" ||
+      argument == "--ignored-source-directories") {
     return true;
   }
 
@@ -405,7 +430,8 @@ const std::vector<std::string> &SupportedConfigKeys() {
                                                 "extractor",
                                                 "analyzer",
                                                 "reporter",
-                                                "ignored_namespaces"};
+                                                "ignored_namespaces",
+                                                "ignored_source_directories"};
   return keys;
 }
 
@@ -417,7 +443,8 @@ std::string NormalizeConfigKey(std::string key) {
       {"output", "out"},
       {"output_directory", "out"},
       {"format", "formats"},
-      {"cache_directory", "cache_dir"}};
+      {"cache_directory", "cache_dir"},
+      {"ignored_source_folders", "ignored_source_directories"}};
 
   if (const auto alias = aliases.find(key); alias != aliases.end()) {
     return alias->second;
@@ -509,6 +536,12 @@ std::vector<std::string> ExtractIgnoredNamespaces(const YAML::Node &node,
   return ExtractList(node, key_name, AppendIgnoredNamespaces);
 }
 
+std::vector<std::string>
+ExtractIgnoredSourceDirectories(const YAML::Node &node,
+                                const std::string &key_name) {
+  return ExtractList(node, key_name, AppendIgnoredSourceDirectories);
+}
+
 bool ExtractBool(const YAML::Node &node, const std::string &key_name) {
   if (!node.IsScalar()) {
     throw std::invalid_argument("Config key '" + key_name +
@@ -523,6 +556,9 @@ ConfigValue ToConfigValue(const std::string &key, const YAML::Node &node) {
   }
   if (key == "ignored_namespaces") {
     return ExtractIgnoredNamespaces(node, key);
+  }
+  if (key == "ignored_source_directories") {
+    return ExtractIgnoredSourceDirectories(node, key);
   }
   if (key == "cache_ast" || key == "clean_cache") {
     return ConfigValue{ExtractBool(node, key)};
@@ -577,6 +613,11 @@ void ApplyConfig(const RawConfig &config, AnalyzeOptions &options) {
     }
     if (key == "ignored_namespaces") {
       options.ignored_namespaces = std::get<std::vector<std::string>>(value);
+      continue;
+    }
+    if (key == "ignored_source_directories") {
+      options.ignored_source_directories =
+          std::get<std::vector<std::string>>(value);
       continue;
     }
     if (key == "log_level") {
@@ -652,6 +693,9 @@ AnalyzeOptions MergeOptions(const AnalyzeOptions &config_options,
   }
   if (!cli_options.ignored_namespaces.empty()) {
     merged.ignored_namespaces = cli_options.ignored_namespaces;
+  }
+  if (!cli_options.ignored_source_directories.empty()) {
+    merged.ignored_source_directories = cli_options.ignored_source_directories;
   }
   if (cli_options.log_level) {
     merged.log_level = cli_options.log_level;
@@ -746,6 +790,27 @@ dsl::LoggingConfig BuildLoggingConfig(const AnalyzeOptions &options) {
   return logging;
 }
 
+std::vector<std::filesystem::path>
+ResolveIgnoredSourceDirectories(const AnalyzeOptions &options,
+                                const std::filesystem::path &root) {
+  std::vector<std::filesystem::path> resolved;
+  for (const auto &raw_directory : options.ignored_source_directories) {
+    auto directory = std::filesystem::path(Trim(raw_directory));
+    if (directory.empty()) {
+      continue;
+    }
+    if (!directory.is_absolute()) {
+      directory = root / directory;
+    }
+    directory = std::filesystem::weakly_canonical(directory);
+    if (std::find(resolved.begin(), resolved.end(), directory) ==
+        resolved.end()) {
+      resolved.push_back(std::move(directory));
+    }
+  }
+  return resolved;
+}
+
 dsl::AnalysisConfig BuildAnalysisConfig(const AnalyzeOptions &options,
                                         const std::filesystem::path &root,
                                         const std::filesystem::path &cache_dir,
@@ -760,6 +825,8 @@ dsl::AnalysisConfig BuildAnalysisConfig(const AnalyzeOptions &options,
   if (!options.ignored_namespaces.empty()) {
     config.ignored_namespaces = options.ignored_namespaces;
   }
+  config.ignored_source_directories =
+      ResolveIgnoredSourceDirectories(options, root);
   config.cache.enable_ast_cache = options.enable_ast_cache.value_or(false);
   config.cache.clean = options.clean_cache.value_or(false);
   config.cache.directory = cache_dir.string();
