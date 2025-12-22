@@ -9,13 +9,34 @@ namespace dsl {
 namespace {
 
 TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
-  const std::vector<std::string> args = {
-      "--root",        "/project/root",   "--build",     "build-dir",
-      "--format",      "markdown,json",   "--out",       "out-dir",
-      "--scope-notes", "notes",           "--config",    "config.yml",
-      "--log-level",   "debug",           "--cache-ast", "--clean-cache",
-      "--cache-dir",   "cache",           "--extractor", "custom-extractor",
-      "--analyzer",    "custom-analyzer", "--reporter",  "custom-reporter"};
+  const std::vector<std::string> args = {"--root",
+                                         "/project/root",
+                                         "--build",
+                                         "build-dir",
+                                         "--format",
+                                         "markdown,json",
+                                         "--out",
+                                         "out-dir",
+                                         "--scope-notes",
+                                         "notes",
+                                         "--config",
+                                         "config.yml",
+                                         "--ignored-namespaces",
+                                         "custom,other",
+                                         "--ignored-source-folders",
+                                         "generated,temp",
+                                         "--log-level",
+                                         "debug",
+                                         "--cache-ast",
+                                         "--clean-cache",
+                                         "--cache-dir",
+                                         "cache",
+                                         "--extractor",
+                                         "custom-extractor",
+                                         "--analyzer",
+                                         "custom-analyzer",
+                                         "--reporter",
+                                         "custom-reporter"};
 
   const auto options = ParseAnalyzeArguments(args);
 
@@ -28,6 +49,10 @@ TEST(ParseAnalyzeArgumentsTest, ParsesFlagsAndValues) {
   ASSERT_TRUE(options.config_file);
   EXPECT_EQ(options.config_file->generic_string(), "config.yml");
   ASSERT_EQ(options.formats, (std::vector<std::string>{"markdown", "json"}));
+  ASSERT_EQ(options.ignored_namespaces,
+            (std::vector<std::string>{"custom", "other"}));
+  ASSERT_EQ(options.ignored_source_directories,
+            (std::vector<std::string>{"generated", "temp"}));
   EXPECT_EQ(options.scope_notes, std::optional<std::string>("notes"));
   EXPECT_EQ(options.log_level,
             std::optional<dsl::LogLevel>(dsl::LogLevel::kDebug));
@@ -70,6 +95,9 @@ TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   config_stream << "extractor: yaml-extractor\n";
   config_stream << "analyzer: yaml-analyzer\n";
   config_stream << "reporter: yaml-reporter\n";
+  config_stream << "ignored_source_directories:\n";
+  config_stream << "  - generated\n";
+  config_stream << "  - vendor\n";
   config_stream.close();
 
   const auto options = ParseConfigFile(temp_config);
@@ -91,6 +119,8 @@ TEST(ParseConfigFileTest, ParsesYamlNestedValuesAndFormatsList) {
   EXPECT_EQ(options.extractor, std::optional<std::string>("yaml-extractor"));
   EXPECT_EQ(options.analyzer, std::optional<std::string>("yaml-analyzer"));
   EXPECT_EQ(options.reporter, std::optional<std::string>("yaml-reporter"));
+  ASSERT_EQ(options.ignored_source_directories,
+            (std::vector<std::string>{"generated", "vendor"}));
   std::filesystem::remove(temp_config);
 }
 
@@ -122,6 +152,7 @@ TEST(ResolveAnalyzeOptionsTest, CliOverridesConfig) {
   cli_options.config_file = temp_config;
   cli_options.extractor = "cli-extractor";
   cli_options.reporter = "cli-reporter";
+  cli_options.ignored_source_directories = {"generated"};
 
   const auto resolved = ResolveAnalyzeOptions(cli_options);
 
@@ -130,6 +161,8 @@ TEST(ResolveAnalyzeOptionsTest, CliOverridesConfig) {
   EXPECT_FALSE(resolved.enable_ast_cache.value());
   EXPECT_EQ(resolved.extractor, std::optional<std::string>("cli-extractor"));
   EXPECT_EQ(resolved.reporter, std::optional<std::string>("cli-reporter"));
+  ASSERT_EQ(resolved.ignored_source_directories,
+            (std::vector<std::string>{"generated"}));
   std::filesystem::remove(temp_config);
 }
 

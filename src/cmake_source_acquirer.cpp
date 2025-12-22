@@ -5,6 +5,7 @@
 #include <iterator>
 #include <set>
 #include <stdexcept>
+#include <vector>
 
 namespace dsl {
 
@@ -39,13 +40,35 @@ bool IsBuildDirectory(const std::filesystem::directory_entry &entry,
   return IsWithin(entry.path(), build_dir);
 }
 
-bool IsCollectableFile(const std::filesystem::directory_entry &entry,
-                       const std::filesystem::path &build_dir) {
+bool IsIgnoredDirectory(
+    const std::filesystem::directory_entry &entry,
+    const std::vector<std::filesystem::path> &ignored_directories) {
+  if (!entry.is_directory()) {
+    return false;
+  }
+  return std::any_of(ignored_directories.begin(), ignored_directories.end(),
+                     [&](const auto &ignored_directory) {
+                       return IsWithin(entry.path(), ignored_directory);
+                     });
+}
+
+bool IsIgnoredPath(const std::filesystem::path &path,
+                   const std::vector<std::filesystem::path> &ignored) {
+  return std::any_of(
+      ignored.begin(), ignored.end(),
+      [&](const auto &directory) { return IsWithin(path, directory); });
+}
+
+bool IsCollectableFile(
+    const std::filesystem::directory_entry &entry,
+    const std::filesystem::path &build_dir,
+    const std::vector<std::filesystem::path> &ignored_directories) {
   if (!entry.is_regular_file()) {
     return false;
   }
   const auto &path = entry.path();
-  return IsSourceExtension(path) && !IsWithin(path, build_dir);
+  return IsSourceExtension(path) && !IsWithin(path, build_dir) &&
+         !IsIgnoredPath(path, ignored_directories);
 }
 
 std::filesystem::path ResolveRootPath(const AnalysisConfig &config) {
@@ -73,20 +96,21 @@ void RequireCMakeProject(const std::filesystem::path &root) {
   }
 }
 
-std::vector<std::string>
-CollectSourceFiles(const std::filesystem::path &root,
-                   const std::filesystem::path &build_dir) {
+std::vector<std::string> CollectSourceFiles(
+    const std::filesystem::path &root, const std::filesystem::path &build_dir,
+    const std::vector<std::filesystem::path> &ignored_directories) {
   std::vector<std::string> files;
 
   for (std::filesystem::recursive_directory_iterator it(root), end; it != end;
        ++it) {
     const auto &entry = *it;
-    if (IsBuildDirectory(entry, build_dir)) {
+    if (IsBuildDirectory(entry, build_dir) ||
+        IsIgnoredDirectory(entry, ignored_directories)) {
       it.disable_recursion_pending();
       continue;
     }
 
-    if (!IsCollectableFile(entry, build_dir)) {
+    if (!IsCollectableFile(entry, build_dir, ignored_directories)) {
       continue;
     }
 
@@ -118,7 +142,8 @@ CMakeSourceAcquirer::Acquire(const AnalysisConfig &config) {
   }
   build_dir = std::filesystem::weakly_canonical(build_dir);
 
-  auto files = CollectSourceFiles(root, build_dir);
+  auto files =
+      CollectSourceFiles(root, build_dir, config.ignored_source_directories);
   if (files.empty()) {
     throw std::runtime_error("No source files found under root: " +
                              root.string());
