@@ -11,6 +11,7 @@ using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Field;
+using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 
@@ -22,7 +23,9 @@ AnalysisConfig MakeConfig() {
 }
 
 AstFact MakeDefinition(const std::string &name, const std::string &kind,
-                       const std::string &signature) {
+                       const std::string &signature,
+                       const std::string &doc_comment = "",
+                       const std::string &scope_path = "") {
   AstFact fact{};
   fact.name = name;
   fact.kind = kind;
@@ -30,6 +33,8 @@ AstFact MakeDefinition(const std::string &name, const std::string &kind,
   fact.descriptor = signature;
   fact.source_location = name + "::location";
   fact.range = fact.source_location;
+  fact.doc_comment = doc_comment;
+  fact.scope_path = scope_path;
   fact.subject_in_project = true;
   return fact;
 }
@@ -38,7 +43,8 @@ AstFact MakeRelationshipFact(const std::string &name, const std::string &kind,
                              const std::string &target,
                              AstFact::TargetScope scope,
                              const std::string &signature,
-                             const std::string &descriptor) {
+                             const std::string &descriptor,
+                             const std::string &scope_path = "") {
   AstFact fact{};
   fact.name = name;
   fact.kind = kind;
@@ -47,6 +53,7 @@ AstFact MakeRelationshipFact(const std::string &name, const std::string &kind,
   fact.descriptor = descriptor;
   fact.source_location = name + "::" + target;
   fact.range = fact.source_location;
+  fact.scope_path = scope_path;
   fact.subject_in_project = true;
   fact.target_scope = scope;
   fact.target_location = target + "::location";
@@ -125,6 +132,33 @@ TEST(HeuristicDslExtractorTest, AllowsCustomIgnoredNamespaces) {
   EXPECT_THAT(result.terms, Contains(Field(&DslTerm::name, "gtest..suite")));
   EXPECT_THAT(result.relationships,
               Contains(Field(&DslRelationship::object, "gtest..suite")));
+}
+
+TEST(HeuristicDslExtractorTest, MergesCommentsAndScopeIntoDefinitions) {
+  AstIndex index;
+  index.facts.push_back(MakeDefinition("sample::Widget", "type",
+                                       "struct Widget",
+                                       "Widget entity for samples", "sample"));
+  index.facts.push_back(MakeDefinition("sample::Calculator::Add", "function",
+                                       "int Add(int a, int b)",
+                                       "Adds two numbers", "sample::Calculator"));
+
+  HeuristicDslExtractor extractor;
+  const auto result = extractor.Extract(index, MakeConfig());
+
+  ASSERT_THAT(result.terms,
+              Contains(AllOf(Field(&DslTerm::name, "sample..widget"),
+                              Field(&DslTerm::definition,
+                                    AllOf(HasSubstr("Widget entity for samples"),
+                                          HasSubstr("sample"))))));
+  ASSERT_THAT(result.terms,
+              Contains(AllOf(Field(&DslTerm::name, "sample..calculator..add"),
+                              Field(&DslTerm::definition,
+                                    AllOf(HasSubstr("Adds two numbers"),
+                                          HasSubstr("sample::Calculator"))),
+                              Field(&DslTerm::evidence,
+                                    Contains(HasSubstr(
+                                        "sample::Calculator@sample::Calculator::Add::location"))))));
 }
 
 } // namespace
