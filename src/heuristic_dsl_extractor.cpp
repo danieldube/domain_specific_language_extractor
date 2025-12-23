@@ -44,8 +44,7 @@ using RelationshipMap =
 using TermMap = std::unordered_map<std::string, dsl::DslTerm>;
 using AliasMap =
     std::unordered_map<std::string, std::unordered_set<std::string>>;
-using FallbackDefinitionMap =
-    std::unordered_map<std::string, std::string>;
+using FallbackDefinitionMap = std::unordered_map<std::string, std::string>;
 
 std::string CanonicalizeName(std::string name) {
   std::replace(name.begin(), name.end(), ':', '.');
@@ -398,8 +397,8 @@ enum class TermRelevance { kDrop, kLowPriority, kKeep };
 
 TermRelevance EvaluateRelevance(const dsl::DslTerm &term,
                                 const FallbackDefinitionMap &fallbacks) {
-  const bool helper_like =
-      ContainsHelperKeyword(term.name) || ContainsHelperKeyword(term.definition);
+  const bool helper_like = ContainsHelperKeyword(term.name) ||
+                           ContainsHelperKeyword(term.definition);
   const bool meaningful_definition = HasMeaningfulDefinition(term);
   int score = term.usage_count;
   if (meaningful_definition) {
@@ -408,8 +407,7 @@ TermRelevance EvaluateRelevance(const dsl::DslTerm &term,
   if (helper_like) {
     score -= 2;
   }
-  if (!meaningful_definition &&
-      fallbacks.find(term.name) != fallbacks.end()) {
+  if (!meaningful_definition && fallbacks.find(term.name) != fallbacks.end()) {
     --score;
   }
   if (score <= 0) {

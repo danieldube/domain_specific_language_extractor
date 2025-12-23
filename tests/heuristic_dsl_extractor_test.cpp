@@ -170,10 +170,9 @@ TEST(HeuristicDslExtractorTest, MarksHelpersAsLowRelevance) {
   index.facts.push_back(MakeDefinition("app::RunPipeline", "function",
                                        "void RunPipeline()",
                                        "Runs the pipeline", "app"));
-  index.facts.push_back(
-      MakeDefinition("helpers::LoggingHelper", "function",
-                     "void LoggingHelper()", "Utility helper for logging",
-                     "helpers"));
+  index.facts.push_back(MakeDefinition(
+      "helpers::LoggingHelper", "function", "void LoggingHelper()",
+      "Utility helper for logging", "helpers"));
   index.facts.push_back(MakeRelationshipFact(
       "app::RunPipeline", "call", "helpers::LoggingHelper",
       AstFact::TargetScope::kInProject, "void helpers::LoggingHelper()",
@@ -183,16 +182,14 @@ TEST(HeuristicDslExtractorTest, MarksHelpersAsLowRelevance) {
   const auto result = extractor.Extract(index, MakeConfig());
 
   const auto pipeline_term = std::find_if(
-      result.terms.begin(), result.terms.end(), [](const auto &term) {
-        return term.name == "app..runpipeline";
-      });
+      result.terms.begin(), result.terms.end(),
+      [](const auto &term) { return term.name == "app..runpipeline"; });
   ASSERT_NE(pipeline_term, result.terms.end());
   EXPECT_THAT(pipeline_term->definition, HasSubstr("Runs the pipeline"));
 
   const auto helper_term = std::find_if(
-      result.terms.begin(), result.terms.end(), [](const auto &term) {
-        return term.name == "helpers..logginghelper";
-      });
+      result.terms.begin(), result.terms.end(),
+      [](const auto &term) { return term.name == "helpers..logginghelper"; });
   ASSERT_NE(helper_term, result.terms.end());
   EXPECT_THAT(helper_term->definition,
               HasSubstr("Low relevance: helper/utility"));
