@@ -44,6 +44,8 @@ using RelationshipMap =
 using TermMap = std::unordered_map<std::string, dsl::DslTerm>;
 using AliasMap =
     std::unordered_map<std::string, std::unordered_set<std::string>>;
+using FallbackDefinitionMap =
+    std::unordered_map<std::string, std::string>;
 
 std::string CanonicalizeName(std::string name) {
   std::replace(name.begin(), name.end(), ':', '.');
@@ -239,21 +241,6 @@ void EnsureKindInitialized(const ParsedKind &parsed, dsl::DslTerm &term) {
   term.kind = DeriveTermKind(parsed.base_kind);
 }
 
-void EnsureDefaultDefinition(const ParsedKind &parsed, dsl::DslTerm &term) {
-  if (!term.definition.empty()) {
-    return;
-  }
-  term.definition = "Declared as " + parsed.base_kind;
-}
-
-void EnsureFallbackDefinitions(TermMap &terms) {
-  for (auto &[name, term] : terms) {
-    if (term.definition.empty()) {
-      term.definition = "Inferred from symbol context";
-    }
-  }
-}
-
 void AppendAlias(const std::string &canonical_name, const std::string &alias,
                  AliasMap &aliases, dsl::DslTerm &term) {
   if (canonical_name == alias) {
@@ -327,7 +314,8 @@ void TrackTargetReference(const dsl::AstFact &fact, const ParsedKind &parsed,
   }
 }
 
-void TrackExternalDependency(const dsl::AstFact &fact, TermMap &externals) {
+void TrackExternalDependency(const dsl::AstFact &fact, TermMap &externals,
+                             FallbackDefinitionMap &fallback_definitions) {
   if (fact.target_scope != dsl::AstFact::TargetScope::kExternal ||
       fact.target.empty()) {
     return;
@@ -337,6 +325,8 @@ void TrackExternalDependency(const dsl::AstFact &fact, TermMap &externals) {
   auto &dependency = externals[canonical_name];
   dependency.name = canonical_name;
   dependency.kind = "External";
+  fallback_definitions.try_emplace(canonical_name,
+                                   "External dependency reference");
   AppendDefinitionPart(fact.descriptor, dependency);
   AppendDefinitionPart(fact.signature, dependency);
   AppendDefinitionPart(fact.doc_comment, dependency);
@@ -348,8 +338,10 @@ void TrackExternalDependency(const dsl::AstFact &fact, TermMap &externals) {
 void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
                         AliasMap &aliases, RelationshipMap &relationships,
                         const ScopeFilter &scope_filter,
-                        TermMap &external_dependencies) {
-  TrackExternalDependency(fact, external_dependencies);
+                        TermMap &external_dependencies,
+                        FallbackDefinitionMap &term_fallback_definitions,
+                        FallbackDefinitionMap &external_fallbacks) {
+  TrackExternalDependency(fact, external_dependencies, external_fallbacks);
   const auto parsed = ParseKind(fact);
   if (!scope_filter.SubjectInScope(fact) && !IsSymbolReference(parsed)) {
     return;
@@ -371,7 +363,8 @@ void UpdateTermFromFact(const dsl::AstFact &fact, TermMap &terms,
   AppendAlias(canonical_name, fact.name, aliases, term);
   TrackRelationship(fact, parsed, relationships, scope_filter);
   TrackTargetReference(fact, parsed, terms, aliases, scope_filter);
-  EnsureDefaultDefinition(parsed, term);
+  term_fallback_definitions.try_emplace(canonical_name,
+                                        "Declared as " + parsed.base_kind);
 }
 
 std::vector<dsl::DslTerm> MoveTerms(TermMap &terms) {
@@ -383,6 +376,87 @@ std::vector<dsl::DslTerm> MoveTerms(TermMap &terms) {
   return term_list;
 }
 
+bool ContainsHelperKeyword(const std::string &value) {
+  const auto canonical = CanonicalizeName(value);
+  return canonical.find("helper") != std::string::npos ||
+         canonical.find("util") != std::string::npos ||
+         canonical.find("utility") != std::string::npos ||
+         canonical.find("internal") != std::string::npos;
+}
+
+bool HasMeaningfulDefinition(const dsl::DslTerm &term) {
+  if (term.definition.empty()) {
+    return false;
+  }
+  const auto canonical_definition = CanonicalizeName(term.definition);
+  return canonical_definition.find("declared as") == std::string::npos &&
+         canonical_definition.find("inferred from symbol context") ==
+             std::string::npos;
+}
+
+enum class TermRelevance { kDrop, kLowPriority, kKeep };
+
+TermRelevance EvaluateRelevance(const dsl::DslTerm &term,
+                                const FallbackDefinitionMap &fallbacks) {
+  const bool helper_like =
+      ContainsHelperKeyword(term.name) || ContainsHelperKeyword(term.definition);
+  const bool meaningful_definition = HasMeaningfulDefinition(term);
+  int score = term.usage_count;
+  if (meaningful_definition) {
+    ++score;
+  }
+  if (helper_like) {
+    score -= 2;
+  }
+  if (!meaningful_definition &&
+      fallbacks.find(term.name) != fallbacks.end()) {
+    --score;
+  }
+  if (score <= 0) {
+    return TermRelevance::kDrop;
+  }
+  if (helper_like || (!meaningful_definition && term.usage_count == 1)) {
+    return TermRelevance::kLowPriority;
+  }
+  return TermRelevance::kKeep;
+}
+
+void ApplyFallbackDefinitions(const FallbackDefinitionMap &fallbacks,
+                              std::vector<dsl::DslTerm> &terms) {
+  for (auto &term : terms) {
+    if (!term.definition.empty()) {
+      continue;
+    }
+    const auto iterator = fallbacks.find(term.name);
+    if (iterator != fallbacks.end()) {
+      term.definition = iterator->second;
+    }
+  }
+}
+
+std::vector<dsl::DslTerm>
+FilterAndFinalizeTerms(TermMap &terms,
+                       const FallbackDefinitionMap &fallback_definitions) {
+  auto candidates = MoveTerms(terms);
+  std::vector<dsl::DslTerm> filtered_terms;
+  filtered_terms.reserve(candidates.size());
+
+  for (auto &term : candidates) {
+    const auto relevance = EvaluateRelevance(term, fallback_definitions);
+    if (relevance == TermRelevance::kDrop) {
+      continue;
+    }
+    if (relevance == TermRelevance::kLowPriority) {
+      AppendDefinitionPart(
+          "Low relevance: helper/utility or lightly referenced symbol", term);
+    }
+    filtered_terms.push_back(std::move(term));
+  }
+
+  ApplyFallbackDefinitions(fallback_definitions, filtered_terms);
+  return filtered_terms;
+}
+
 std::vector<dsl::DslTerm> BuildTerms(const dsl::AstIndex &index,
                                      RelationshipMap &relationships,
                                      std::vector<dsl::DslTerm> &externals,
@@ -390,16 +464,17 @@ std::vector<dsl::DslTerm> BuildTerms(const dsl::AstIndex &index,
   TermMap terms;
   AliasMap aliases;
   TermMap external_dependencies;
+  FallbackDefinitionMap fallback_definitions;
+  FallbackDefinitionMap external_fallbacks;
   const ScopeFilter scope_filter(index, config.ignored_namespaces);
 
   for (const auto &fact : index.facts) {
     UpdateTermFromFact(fact, terms, aliases, relationships, scope_filter,
-                       external_dependencies);
+                       external_dependencies, fallback_definitions,
+                       external_fallbacks);
   }
-  EnsureFallbackDefinitions(terms);
-  EnsureFallbackDefinitions(external_dependencies);
-  externals = MoveTerms(external_dependencies);
-  return MoveTerms(terms);
+  externals = FilterAndFinalizeTerms(external_dependencies, external_fallbacks);
+  return FilterAndFinalizeTerms(terms, fallback_definitions);
 }
 
 std::vector<dsl::DslRelationship>
