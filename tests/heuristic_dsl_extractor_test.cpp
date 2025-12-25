@@ -1,6 +1,8 @@
 #include <dsl/heuristic_dsl_extractor.h>
 #include <dsl/models.h>
 
+#include <algorithm>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -161,6 +163,66 @@ TEST(HeuristicDslExtractorTest, MergesCommentsAndScopeIntoDefinitions) {
               &DslTerm::evidence,
               Contains(HasSubstr(
                   "sample::Calculator@sample::Calculator::Add::location"))))));
+}
+
+TEST(HeuristicDslExtractorTest, MarksHelpersAsLowRelevance) {
+  AstIndex index;
+  index.facts.push_back(MakeDefinition("app::RunPipeline", "function",
+                                       "void RunPipeline()",
+                                       "Runs the pipeline", "app"));
+  index.facts.push_back(MakeDefinition(
+      "helpers::LoggingHelper", "function", "void LoggingHelper()",
+      "Utility helper for logging", "helpers"));
+  index.facts.push_back(MakeRelationshipFact(
+      "app::RunPipeline", "call", "helpers::LoggingHelper",
+      AstFact::TargetScope::kInProject, "void helpers::LoggingHelper()",
+      "calls helper", "app"));
+
+  HeuristicDslExtractor extractor;
+  const auto result = extractor.Extract(index, MakeConfig());
+
+  const auto pipeline_term = std::find_if(
+      result.terms.begin(), result.terms.end(),
+      [](const auto &term) { return term.name == "app..runpipeline"; });
+  ASSERT_NE(pipeline_term, result.terms.end());
+  EXPECT_THAT(pipeline_term->definition, HasSubstr("Runs the pipeline"));
+
+  const auto helper_term = std::find_if(
+      result.terms.begin(), result.terms.end(),
+      [](const auto &term) { return term.name == "helpers..logginghelper"; });
+  ASSERT_NE(helper_term, result.terms.end());
+  EXPECT_THAT(helper_term->definition,
+              HasSubstr("Low relevance: helper/utility"));
+  EXPECT_GE(helper_term->usage_count, 2);
+}
+
+TEST(HeuristicDslExtractorTest, DropsPlaceholderOnlyEntries) {
+  AstIndex index;
+  auto ignored = MakeDefinition("std::IgnoredType", "type", "");
+  ignored.descriptor.clear();
+  index.facts.push_back(ignored);
+
+  auto placeholder =
+      MakeDefinition("helpers::TempUtility", "function", "", "", "helpers");
+  placeholder.descriptor.clear();
+  index.facts.push_back(placeholder);
+
+  index.facts.push_back(MakeDefinition("core::RealWork", "function",
+                                       "void RealWork()", "Performs work"));
+
+  HeuristicDslExtractor extractor;
+  const auto result = extractor.Extract(index, MakeConfig());
+
+  EXPECT_THAT(result.terms,
+              Not(Contains(Field(&DslTerm::name, "helpers..temputility"))));
+  EXPECT_THAT(result.terms,
+              Not(Contains(Field(&DslTerm::name, "std..ignoredtype"))));
+  ASSERT_THAT(result.terms, Contains(Field(&DslTerm::name, "core..realwork")));
+  for (const auto &term : result.terms) {
+    EXPECT_THAT(term.definition,
+                AllOf(Not(HasSubstr("Inferred from symbol context")),
+                      Not(HasSubstr("Declared as"))));
+  }
 }
 
 } // namespace
